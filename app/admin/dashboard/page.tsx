@@ -2,11 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Users,
   DollarSign,
-  CheckCircle2,
   Package,
   Wallet,
   TrendingUp,
@@ -15,7 +13,11 @@ import {
   Loader2,
   Medal,
   Target,
-  BarChart3,
+  ShieldCheck,
+  CheckCircle2,
+  Clock,
+  XCircle,
+  Sparkles,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -64,7 +66,7 @@ export default function AdminDashboard() {
             balance: financeData.summary.balance || 0,
           });
         }
-      } catch (e) {}
+      } catch {}
 
       // Load inventory stats
       try {
@@ -79,12 +81,12 @@ export default function AdminDashboard() {
         const loansRes = await fetch('/api/admin/inventory/loans', { cache: 'no-store' });
         const loansData = await loansRes.json();
         if (loansData.success) {
-          setInventoryStats(prev => ({
+          setInventoryStats((prev) => ({
             ...prev,
             activeLoans: loansData.data?.filter((l: any) => l.status === 'active')?.length || 0,
           }));
         }
-      } catch (e) {}
+      } catch {}
     } finally {
       setLoading(false);
     }
@@ -92,8 +94,13 @@ export default function AdminDashboard() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+      <div className="min-h-[70vh] flex items-center justify-center">
+        <div className="text-center space-y-3">
+          <Loader2 className="h-8 w-8 animate-spin text-[#D5F05B] mx-auto" />
+          <p className="text-xs font-mono text-[#A4A5AA] tracking-widest uppercase">
+            LOADING TOURNAMENT DASHBOARD METRICS...
+          </p>
+        </div>
       </div>
     );
   }
@@ -101,193 +108,220 @@ export default function AdminDashboard() {
   const totalPending = stats.pendingOnline + stats.pendingCash;
 
   return (
-    <div className="p-6 lg:p-8 pt-16 lg:pt-8">
-      {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-slate-800 flex items-center gap-3">
-          <div className="p-2 bg-gradient-to-br from-amber-400 to-orange-500 rounded-xl shadow-lg">
-            <Medal className="h-6 w-6 text-white" />
+    <div className="p-6 lg:p-10 pt-20 lg:pt-10 max-w-7xl mx-auto space-y-10">
+      {/* Top Header */}
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 pb-6 border-b border-white/[0.08]">
+        <div>
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-md bg-[#14161C] border border-white/[0.08] text-xs font-mono text-[#D5F05B] uppercase tracking-wider mb-2">
+            <span>// TOURNAMENT COMMAND CENTER</span>
           </div>
-          Dashboard
-        </h1>
-        <p className="text-slate-500 mt-1">Mini Olympics 2026 - Overview</p>
+          <h1 className="text-3xl sm:text-4xl font-black text-[#F4F1EA] uppercase font-['Space_Grotesk'] tracking-tight">
+            OPERATIONS DASHBOARD
+          </h1>
+          <p className="text-xs font-mono text-[#A4A5AA] mt-1">
+            MINI OLYMPICS 2026 • REAL-TIME REGISTRATION & LOGISTICS OVERVIEW
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Link
+            href="/verify-cash"
+            className="px-4 py-2.5 rounded-xl text-xs font-mono font-bold tracking-wider text-[#101114] bg-[#D5F05B] hover:bg-[#c2de4a] uppercase transition-all inline-flex items-center gap-1.5"
+          >
+            <ShieldCheck className="w-4 h-4" />
+            <span>OPEN VERIFICATION DESK</span>
+          </Link>
+        </div>
       </div>
 
-      {/* Quick Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      {/* 4 Hero KPI Blocks */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         {/* Total Registrations */}
-        <Card className="border-0 shadow-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white overflow-hidden relative">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-16 translate-x-16" />
-          <CardContent className="p-6 relative">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-blue-100 text-sm font-medium">Total Registrations</p>
-                <p className="text-4xl font-bold mt-2">{stats.total}</p>
-                <p className="text-blue-200 text-sm mt-1">{stats.paid} verified</p>
-              </div>
-              <div className="p-3 bg-white/20 rounded-xl">
-                <Users className="h-6 w-6" />
-              </div>
+        <div className="relative p-6 rounded-3xl bg-[#14161C] border border-white/[0.08] hover:border-[#D5F05B]/40 transition-all shadow-xl group">
+          <div className="flex items-center justify-between mb-4">
+            <span className="text-xs font-mono text-[#A4A5AA] uppercase tracking-wider">TOTAL REGISTRATIONS</span>
+            <div className="p-2.5 rounded-xl bg-[#D5F05B]/10 text-[#D5F05B]">
+              <Users className="w-4 h-4" />
             </div>
-          </CardContent>
-        </Card>
+          </div>
+          <div className="text-4xl sm:text-5xl font-black text-[#F4F1EA] font-['Space_Grotesk'] leading-none">
+            {stats.total}
+          </div>
+          <div className="mt-3 flex items-center justify-between text-xs font-mono">
+            <span className="text-[#D5F05B] font-bold">{stats.paid} Verified</span>
+            <span className="text-[#A4A5AA]">{totalPending} Pending</span>
+          </div>
+          <div className="absolute bottom-0 left-6 right-6 h-[2px] bg-[#D5F05B] opacity-40 group-hover:opacity-100 transition-opacity" />
+        </div>
 
         {/* Pending Approvals */}
-        <Card className="border-0 shadow-xl bg-gradient-to-br from-amber-500 to-orange-600 text-white overflow-hidden relative">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-16 translate-x-16" />
-          <CardContent className="p-6 relative">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-amber-100 text-sm font-medium">Pending Approvals</p>
-                <p className="text-4xl font-bold mt-2">{totalPending}</p>
-                <p className="text-amber-200 text-sm mt-1">Needs verification</p>
-              </div>
-              <div className="p-3 bg-white/20 rounded-xl">
-                <Target className="h-6 w-6" />
-              </div>
+        <div className="relative p-6 rounded-3xl bg-[#14161C] border border-white/[0.08] hover:border-[#F15A29]/40 transition-all shadow-xl group">
+          <div className="flex items-center justify-between mb-4">
+            <span className="text-xs font-mono text-[#A4A5AA] uppercase tracking-wider">PENDING REVIEW</span>
+            <div className="p-2.5 rounded-xl bg-[#F15A29]/10 text-[#F15A29]">
+              <Clock className="w-4 h-4" />
             </div>
-          </CardContent>
-        </Card>
+          </div>
+          <div className="text-4xl sm:text-5xl font-black text-[#F15A29] font-['Space_Grotesk'] leading-none">
+            {totalPending}
+          </div>
+          <div className="mt-3 flex items-center justify-between text-xs font-mono">
+            <span className="text-[#A4A5AA]">Cash: {stats.pendingCash}</span>
+            <span className="text-[#A4A5AA]">Online: {stats.pendingOnline}</span>
+          </div>
+          <div className="absolute bottom-0 left-6 right-6 h-[2px] bg-[#F15A29] opacity-40 group-hover:opacity-100 transition-opacity" />
+        </div>
 
-        {/* Finance Balance */}
-        <Card className="border-0 shadow-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white overflow-hidden relative">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-16 translate-x-16" />
-          <CardContent className="p-6 relative">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-emerald-100 text-sm font-medium">Finance Balance</p>
-                <p className="text-4xl font-bold mt-2">Rs. {financeStats.balance.toLocaleString()}</p>
-                <p className="text-emerald-200 text-sm mt-1">Income - Expense</p>
-              </div>
-              <div className="p-3 bg-white/20 rounded-xl">
-                <Wallet className="h-6 w-6" />
-              </div>
+        {/* Financial Treasury Balance */}
+        <div className="relative p-6 rounded-3xl bg-[#14161C] border border-white/[0.08] hover:border-[#00E5FF]/40 transition-all shadow-xl group">
+          <div className="flex items-center justify-between mb-4">
+            <span className="text-xs font-mono text-[#A4A5AA] uppercase tracking-wider">TREASURY BALANCE</span>
+            <div className="p-2.5 rounded-xl bg-[#00E5FF]/10 text-[#00E5FF]">
+              <Wallet className="w-4 h-4" />
             </div>
-          </CardContent>
-        </Card>
+          </div>
+          <div className="text-3xl sm:text-4xl font-black text-[#F4F1EA] font-['Space_Grotesk'] leading-none truncate">
+            Rs. {financeStats.balance.toLocaleString()}
+          </div>
+          <div className="mt-3 flex items-center justify-between text-xs font-mono">
+            <span className="text-emerald-400">+{financeStats.income.toLocaleString()} In</span>
+            <span className="text-rose-400">-{financeStats.expense.toLocaleString()} Out</span>
+          </div>
+          <div className="absolute bottom-0 left-6 right-6 h-[2px] bg-[#00E5FF] opacity-40 group-hover:opacity-100 transition-opacity" />
+        </div>
 
-        {/* Inventory */}
-        <Card className="border-0 shadow-xl bg-gradient-to-br from-purple-500 to-pink-600 text-white overflow-hidden relative">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-16 translate-x-16" />
-          <CardContent className="p-6 relative">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-purple-100 text-sm font-medium">Inventory</p>
-                <p className="text-4xl font-bold mt-2">{inventoryStats.totalItems}</p>
-                <p className="text-purple-200 text-sm mt-1">{inventoryStats.activeLoans} active loans</p>
-              </div>
-              <div className="p-3 bg-white/20 rounded-xl">
-                <Package className="h-6 w-6" />
-              </div>
+        {/* Equipment & Inventory */}
+        <div className="relative p-6 rounded-3xl bg-[#14161C] border border-white/[0.08] hover:border-[#FFD700]/40 transition-all shadow-xl group">
+          <div className="flex items-center justify-between mb-4">
+            <span className="text-xs font-mono text-[#A4A5AA] uppercase tracking-wider">EQUIPMENT ASSETS</span>
+            <div className="p-2.5 rounded-xl bg-[#FFD700]/10 text-[#FFD700]">
+              <Package className="w-4 h-4" />
             </div>
-          </CardContent>
-        </Card>
+          </div>
+          <div className="text-4xl sm:text-5xl font-black text-[#F4F1EA] font-['Space_Grotesk'] leading-none">
+            {inventoryStats.totalItems}
+          </div>
+          <div className="mt-3 flex items-center justify-between text-xs font-mono">
+            <span className="text-[#FFD700] font-bold">{inventoryStats.activeLoans} Active Loans</span>
+            <span className="text-[#A4A5AA]">Tracked</span>
+          </div>
+          <div className="absolute bottom-0 left-6 right-6 h-[2px] bg-[#FFD700] opacity-40 group-hover:opacity-100 transition-opacity" />
+        </div>
       </div>
 
-      {/* Quick Access Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {/* Registrations Card */}
-        <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow group">
-          <CardHeader className="pb-3">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-100 rounded-lg group-hover:bg-blue-500 transition-colors">
-                <Users className="h-5 w-5 text-blue-600 group-hover:text-white transition-colors" />
+      {/* Module Navigation Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* Registrations Management Module */}
+        <div className="p-6 rounded-3xl bg-[#14161C] border border-white/[0.08] flex flex-col justify-between space-y-6">
+          <div>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2.5 rounded-xl bg-blue-500/10 text-blue-400">
+                <Users className="w-5 h-5" />
               </div>
               <div>
-                <CardTitle className="text-lg">Registrations</CardTitle>
-                <CardDescription>Manage participants</CardDescription>
+                <h3 className="font-bold text-base text-[#F4F1EA] font-['Space_Grotesk'] uppercase">
+                  Registrations & Verification
+                </h3>
+                <p className="text-xs font-mono text-[#A4A5AA]">Participant review & audit logs</p>
               </div>
             </div>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-3 gap-3 mb-4">
-              <div className="text-center p-3 bg-emerald-50 rounded-lg">
-                <p className="text-2xl font-bold text-emerald-600">{stats.paid}</p>
-                <p className="text-xs text-slate-500">Verified</p>
-              </div>
-              <div className="text-center p-3 bg-amber-50 rounded-lg">
-                <p className="text-2xl font-bold text-amber-600">{totalPending}</p>
-                <p className="text-xs text-slate-500">Pending</p>
-              </div>
-              <div className="text-center p-3 bg-rose-50 rounded-lg">
-                <p className="text-2xl font-bold text-rose-600">{stats.rejected}</p>
-                <p className="text-xs text-slate-500">Rejected</p>
-              </div>
-            </div>
-            <Link href="/admin/registrations">
-              <Button className="w-full bg-blue-600 hover:bg-blue-700">
-                View All Registrations
-                <ArrowRight className="h-4 w-4 ml-2" />
-              </Button>
-            </Link>
-          </CardContent>
-        </Card>
 
-        {/* Finance Card */}
-        <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow group">
-          <CardHeader className="pb-3">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-emerald-100 rounded-lg group-hover:bg-emerald-500 transition-colors">
-                <Wallet className="h-5 w-5 text-emerald-600 group-hover:text-white transition-colors" />
+            <div className="grid grid-cols-3 gap-2 text-center font-mono text-xs mb-4">
+              <div className="p-3 rounded-xl bg-[#0A0B0E] border border-white/[0.06]">
+                <p className="text-lg font-bold text-[#D5F05B]">{stats.paid}</p>
+                <p className="text-[10px] text-[#A4A5AA]">Paid</p>
               </div>
-              <div>
-                <CardTitle className="text-lg">Finance</CardTitle>
-                <CardDescription>Income & Expenses</CardDescription>
+              <div className="p-3 rounded-xl bg-[#0A0B0E] border border-white/[0.06]">
+                <p className="text-lg font-bold text-amber-400">{totalPending}</p>
+                <p className="text-[10px] text-[#A4A5AA]">Pending</p>
               </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 gap-3 mb-4">
-              <div className="text-center p-3 bg-emerald-50 rounded-lg">
-                <p className="text-xl font-bold text-emerald-600">Rs. {financeStats.income.toLocaleString()}</p>
-                <p className="text-xs text-slate-500">Income</p>
-              </div>
-              <div className="text-center p-3 bg-rose-50 rounded-lg">
-                <p className="text-xl font-bold text-rose-600">Rs. {financeStats.expense.toLocaleString()}</p>
-                <p className="text-xs text-slate-500">Expense</p>
+              <div className="p-3 rounded-xl bg-[#0A0B0E] border border-white/[0.06]">
+                <p className="text-lg font-bold text-rose-400">{stats.rejected}</p>
+                <p className="text-[10px] text-[#A4A5AA]">Rejected</p>
               </div>
             </div>
-            <Link href="/admin/finance">
-              <Button className="w-full bg-emerald-600 hover:bg-emerald-700">
-                View Finance
-                <ArrowRight className="h-4 w-4 ml-2" />
-              </Button>
-            </Link>
-          </CardContent>
-        </Card>
+          </div>
 
-        {/* Inventory Card */}
-        <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow group">
-          <CardHeader className="pb-3">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-purple-100 rounded-lg group-hover:bg-purple-500 transition-colors">
-                <Package className="h-5 w-5 text-purple-600 group-hover:text-white transition-colors" />
+          <Link
+            href="/admin/registrations"
+            className="w-full py-3 rounded-xl text-xs font-mono font-bold tracking-wider text-center text-[#F4F1EA] bg-white/[0.05] hover:bg-white/[0.1] border border-white/[0.08] transition-all flex items-center justify-center gap-2 uppercase"
+          >
+            <span>MANAGE ALL REGISTRATIONS</span>
+            <ArrowRight className="w-4 h-4" />
+          </Link>
+        </div>
+
+        {/* Finance Ledger Module */}
+        <div className="p-6 rounded-3xl bg-[#14161C] border border-white/[0.08] flex flex-col justify-between space-y-6">
+          <div>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-400">
+                <Wallet className="w-5 h-5" />
               </div>
               <div>
-                <CardTitle className="text-lg">Inventory</CardTitle>
-                <CardDescription>Equipment & Loans</CardDescription>
+                <h3 className="font-bold text-base text-[#F4F1EA] font-['Space_Grotesk'] uppercase">
+                  Finance & Treasury
+                </h3>
+                <p className="text-xs font-mono text-[#A4A5AA]">Incomes, expenses & sync</p>
               </div>
             </div>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 gap-3 mb-4">
-              <div className="text-center p-3 bg-purple-50 rounded-lg">
-                <p className="text-2xl font-bold text-purple-600">{inventoryStats.totalItems}</p>
-                <p className="text-xs text-slate-500">Total Items</p>
+
+            <div className="grid grid-cols-2 gap-2 text-center font-mono text-xs mb-4">
+              <div className="p-3 rounded-xl bg-[#0A0B0E] border border-white/[0.06]">
+                <p className="text-sm font-bold text-emerald-400">Rs. {financeStats.income.toLocaleString()}</p>
+                <p className="text-[10px] text-[#A4A5AA]">Income</p>
               </div>
-              <div className="text-center p-3 bg-amber-50 rounded-lg">
-                <p className="text-2xl font-bold text-amber-600">{inventoryStats.activeLoans}</p>
-                <p className="text-xs text-slate-500">Active Loans</p>
+              <div className="p-3 rounded-xl bg-[#0A0B0E] border border-white/[0.06]">
+                <p className="text-sm font-bold text-rose-400">Rs. {financeStats.expense.toLocaleString()}</p>
+                <p className="text-[10px] text-[#A4A5AA]">Expense</p>
               </div>
             </div>
-            <Link href="/admin/inventory">
-              <Button className="w-full bg-purple-600 hover:bg-purple-700">
-                View Inventory
-                <ArrowRight className="h-4 w-4 ml-2" />
-              </Button>
-            </Link>
-          </CardContent>
-        </Card>
+          </div>
+
+          <Link
+            href="/admin/finance"
+            className="w-full py-3 rounded-xl text-xs font-mono font-bold tracking-wider text-center text-[#F4F1EA] bg-white/[0.05] hover:bg-white/[0.1] border border-white/[0.08] transition-all flex items-center justify-center gap-2 uppercase"
+          >
+            <span>ACCESS FINANCE LEDGER</span>
+            <ArrowRight className="w-4 h-4" />
+          </Link>
+        </div>
+
+        {/* Head of Competition (HOC) Module */}
+        <div className="p-6 rounded-3xl bg-[#14161C] border border-white/[0.08] flex flex-col justify-between space-y-6">
+          <div>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2.5 rounded-xl bg-[#F15A29]/10 text-[#F15A29]">
+                <Trophy className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-bold text-base text-[#F4F1EA] font-['Space_Grotesk'] uppercase">
+                  HOC Tournament Brackets
+                </h3>
+                <p className="text-xs font-mono text-[#A4A5AA]">Match fixtures & referee sheets</p>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-xl bg-[#0A0B0E] border border-white/[0.06] text-xs font-mono text-[#A4A5AA] space-y-1 mb-4">
+              <div className="flex justify-between">
+                <span>Active Format:</span>
+                <span className="text-[#D5F05B] font-bold">Knockout & Groups</span>
+              </div>
+              <div className="flex justify-between">
+                <span>PDF Generator:</span>
+                <span className="text-white font-bold">Available</span>
+              </div>
+            </div>
+          </div>
+
+          <Link
+            href="/admin/hoc"
+            className="w-full py-3 rounded-xl text-xs font-mono font-bold tracking-wider text-center text-[#F4F1EA] bg-white/[0.05] hover:bg-white/[0.1] border border-white/[0.08] transition-all flex items-center justify-center gap-2 uppercase"
+          >
+            <span>HOC FIXTURE ENGINE</span>
+            <ArrowRight className="w-4 h-4" />
+          </Link>
+        </div>
       </div>
     </div>
   );

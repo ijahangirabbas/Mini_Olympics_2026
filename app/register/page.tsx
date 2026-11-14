@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import {
   Select,
   SelectContent,
@@ -13,9 +14,32 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { CheckCircle2, Circle, DollarSign, X, Copy, ExternalLink, Users, MessageCircle, Tag, Lock, Mail } from 'lucide-react';
-import Link from 'next/link';
-import { gamesPricing as defaultGamesPricing, getAvailableGames as defaultGetAvailableGames, isTeamGame as defaultIsTeamGame, getRequiredPlayers as defaultGetRequiredPlayers } from '@/lib/games-pricing';
+import {
+  CheckCircle2,
+  Circle,
+  Copy,
+  Users,
+  Tag,
+  Lock,
+  Mail,
+  ArrowLeft,
+  ArrowRight,
+  Shield,
+  Trophy,
+  DollarSign,
+  AlertCircle,
+  Check,
+  X,
+  CreditCard,
+  QrCode,
+  Sparkles,
+} from 'lucide-react';
+import {
+  gamesPricing as defaultGamesPricing,
+  getAvailableGames as defaultGetAvailableGames,
+  isTeamGame as defaultIsTeamGame,
+  getRequiredPlayers as defaultGetRequiredPlayers,
+} from '@/lib/games-pricing';
 
 type TeamMember = {
   name: string;
@@ -40,14 +64,17 @@ type FormData = {
   gender: 'boys' | 'girls' | '';
   teamName: string;
   selectedGames: string[];
-  teamMembers: Record<string, TeamMember[]>; // gameName -> array of team members
+  teamMembers: Record<string, TeamMember[]>;
   paymentMethod: 'cash' | 'online' | '';
   transactionId: string;
   screenshotUrl: string;
 };
 
-export default function RegisterPage() {
+function RegisterForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const preselectedGame = searchParams?.get('game') || '';
+
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [accountCopied, setAccountCopied] = useState(false);
@@ -65,6 +92,7 @@ export default function RegisterPage() {
     transactionId: '',
     screenshotUrl: '',
   });
+
   const [allGames, setAllGames] = useState<GamePrice[]>(defaultGamesPricing);
   const [availableGames, setAvailableGames] = useState<GamePrice[]>(defaultGamesPricing);
   const [sportGroups, setSportGroups] = useState<any[]>([]);
@@ -97,19 +125,16 @@ export default function RegisterPage() {
   useEffect(() => {
     const fetchGames = async () => {
       try {
-        // Add timestamp to bust cache
-        const res = await fetch(`/api/games?t=${Date.now()}`, { 
+        const res = await fetch(`/api/games?t=${Date.now()}`, {
           cache: 'no-store',
           headers: {
             'Cache-Control': 'no-cache',
-            'Pragma': 'no-cache'
-          }
+            Pragma: 'no-cache',
+          },
         });
         const data = await res.json();
         if (data.success && data.data && data.data.length > 0) {
           setAllGames(data.data);
-        } else {
-          console.log('No games in database, using defaults');
         }
       } catch (e) {
         console.error('Failed to load games, using defaults:', e);
@@ -118,7 +143,20 @@ export default function RegisterPage() {
     fetchGames();
   }, []);
 
-  // Helper functions that work with current allGames state
+  // Pre-select game if passed in URL
+  useEffect(() => {
+    if (preselectedGame && availableGames.length > 0) {
+      const match = availableGames.find((g) => g.name.toLowerCase() === preselectedGame.toLowerCase());
+      if (match && !formData.selectedGames.includes(match.name)) {
+        setFormData((prev) => ({
+          ...prev,
+          selectedGames: [...prev.selectedGames, match.name],
+        }));
+      }
+    }
+  }, [preselectedGame, availableGames]);
+
+  // Helper functions
   const getAvailableGamesForGender = (gender: 'boys' | 'girls'): GamePrice[] => {
     return allGames.filter((game) => {
       return gender === 'boys' ? game.boys !== null : game.girls !== null;
@@ -145,7 +183,7 @@ export default function RegisterPage() {
   const getRequiredPlayers = (gameName: string, gender: 'boys' | 'girls'): number | null => {
     const game = allGames.find((g) => g.name === gameName);
     if (!game) return null;
-    return gender === 'boys' ? (game.boysPlayers || null) : (game.girlsPlayers || null);
+    return gender === 'boys' ? game.boysPlayers || null : game.girlsPlayers || null;
   };
 
   const isTeamGame = (gameName: string, gender: 'boys' | 'girls'): boolean => {
@@ -156,13 +194,12 @@ export default function RegisterPage() {
   useEffect(() => {
     if (formData.gender) {
       setAvailableGames(getAvailableGamesForGender(formData.gender));
-      // Clear selected games and team members when gender changes
       setFormData((prev) => ({ ...prev, selectedGames: [], teamMembers: {} }));
       setSportGroups([]);
     }
   }, [formData.gender, allGames]);
 
-  // When cash is disabled, ensure Online is selected on payment step
+  // When cash is disabled, ensure Online is selected
   useEffect(() => {
     if (step === 3 && !cashPaymentEnabled && formData.paymentMethod !== 'online') {
       setFormData((prev) => ({ ...prev, paymentMethod: 'online' }));
@@ -202,8 +239,6 @@ export default function RegisterPage() {
 
   const handleInputChange = (field: keyof FormData, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
-    
-    // Reset team name status when typing
     if (field === 'teamName') {
       setTeamNameStatus('idle');
       setTeamNameError('');
@@ -218,10 +253,10 @@ export default function RegisterPage() {
       setTeamNameStatus('idle');
       return false;
     }
-    
+
     setTeamNameStatus('checking');
     setTeamNameError('');
-    
+
     try {
       const res = await fetch('/api/registrations/verify', {
         method: 'POST',
@@ -229,7 +264,7 @@ export default function RegisterPage() {
         body: JSON.stringify({ teamName }),
       });
       const data = await res.json();
-      
+
       if (data.success) {
         if (data.isUnique) {
           setTeamNameStatus('available');
@@ -257,30 +292,29 @@ export default function RegisterPage() {
     setFormData((prev) => {
       const isSelected = prev.selectedGames.includes(gameName);
       if (isSelected) {
-        // Remove game and its team members
         const newTeamMembers = { ...prev.teamMembers };
         delete newTeamMembers[gameName];
-        return { 
-          ...prev, 
+        return {
+          ...prev,
           selectedGames: prev.selectedGames.filter((g) => g !== gameName),
-          teamMembers: newTeamMembers
+          teamMembers: newTeamMembers,
         };
       } else {
-        // Add game and initialize team members if it's a team game
         const newTeamMembers = { ...prev.teamMembers };
         if (formData.gender && isTeamGame(gameName, formData.gender)) {
           const requiredPlayers = getRequiredPlayers(gameName, formData.gender) || 0;
-          // Initialize with empty team members (excluding the current player)
-          newTeamMembers[gameName] = Array(requiredPlayers - 1).fill(null).map(() => ({
-            name: '',
-            rollNumber: '',
-            contactNumber: '',
-          }));
+          newTeamMembers[gameName] = Array(requiredPlayers - 1)
+            .fill(null)
+            .map(() => ({
+              name: '',
+              rollNumber: '',
+              contactNumber: '',
+            }));
         }
-        return { 
-          ...prev, 
+        return {
+          ...prev,
           selectedGames: [...prev.selectedGames, gameName],
-          teamMembers: newTeamMembers
+          teamMembers: newTeamMembers,
         };
       }
     });
@@ -306,7 +340,6 @@ export default function RegisterPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Convert to base64 for demo (in production, upload to cloud storage)
     const reader = new FileReader();
     reader.onloadend = () => {
       setFormData((prev) => ({
@@ -317,19 +350,21 @@ export default function RegisterPage() {
     reader.readAsDataURL(file);
   };
 
-  const totalAmount = formData.gender && formData.selectedGames.length > 0
-    ? calculateTotal(formData.selectedGames, formData.gender)
-    : 0;
+  const totalAmount =
+    formData.gender && formData.selectedGames.length > 0
+      ? calculateTotal(formData.selectedGames, formData.gender)
+      : 0;
 
-  // Coupon does not apply to "Swimming" — discount only on amount from other games
   const GAME_EXCLUDED_FROM_COUPON = 'Swimming';
-  const swimmingPrice = formData.gender && formData.selectedGames.includes(GAME_EXCLUDED_FROM_COUPON)
-    ? (getGamePrice(GAME_EXCLUDED_FROM_COUPON, formData.gender) ?? 0)
-    : 0;
+  const swimmingPrice =
+    formData.gender && formData.selectedGames.includes(GAME_EXCLUDED_FROM_COUPON)
+      ? getGamePrice(GAME_EXCLUDED_FROM_COUPON, formData.gender) ?? 0
+      : 0;
   const amountEligibleForDiscount = Math.max(0, totalAmount - swimmingPrice);
-  const discountAmount = appliedCoupon && amountEligibleForDiscount > 0
-    ? Math.round((amountEligibleForDiscount * appliedCoupon.discountPercent) / 100 * 100) / 100
-    : 0;
+  const discountAmount =
+    appliedCoupon && amountEligibleForDiscount > 0
+      ? Math.round((amountEligibleForDiscount * appliedCoupon.discountPercent) / 100 * 100) / 100
+      : 0;
   const finalAmount = totalAmount - discountAmount;
 
   const handleApplyCoupon = async () => {
@@ -342,7 +377,10 @@ export default function RegisterPage() {
     setCouponError('');
     setAppliedCoupon(null);
     try {
-      const res = await fetch(`/api/coupons/validate?code=${encodeURIComponent(code)}&_t=${Date.now()}`, { cache: 'no-store', headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' } });
+      const res = await fetch(
+        `/api/coupons/validate?code=${encodeURIComponent(code)}&_t=${Date.now()}`,
+        { cache: 'no-store', headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' } }
+      );
       const data = await res.json();
       if (data.valid && data.discountPercent) {
         setAppliedCoupon({ code: code.toUpperCase(), discountPercent: data.discountPercent });
@@ -366,10 +404,12 @@ export default function RegisterPage() {
   };
 
   const handleSubmit = async () => {
-    // Re-validate coupon right before submit so deleted/inactive coupons don't show discount or get sent
     if (appliedCoupon) {
       try {
-        const res = await fetch(`/api/coupons/validate?code=${encodeURIComponent(appliedCoupon.code)}&_t=${Date.now()}`, { cache: 'no-store', headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' } });
+        const res = await fetch(
+          `/api/coupons/validate?code=${encodeURIComponent(appliedCoupon.code)}&_t=${Date.now()}`,
+          { cache: 'no-store', headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' } }
+        );
         const data = await res.json();
         if (!data.valid || !data.discountPercent) {
           setAppliedCoupon(null);
@@ -378,7 +418,6 @@ export default function RegisterPage() {
           alert(data.error || 'This coupon is no longer valid. Please remove it and try again.');
           return;
         }
-        setCouponError('');
       } catch {
         setAppliedCoupon(null);
         setCouponInput('');
@@ -428,14 +467,12 @@ export default function RegisterPage() {
         }
         router.push(`/success?${params.toString()}`);
       } else {
-        // Handle team name error specifically
         if (data.field === 'teamName') {
           setTeamNameStatus('taken');
           setTeamNameError(data.error);
-          setStep(1); // Go back to step 1 to fix team name
+          setStep(1);
           alert('Team name already exists! Please go back and choose a different team name.');
         } else if (data.field === 'couponCode') {
-          // Coupon no longer valid (e.g. deleted in admin) — clear it and show message
           setAppliedCoupon(null);
           setCouponInput('');
           setCouponError(data.error || 'This coupon is no longer valid. Please remove it or use a different code.');
@@ -476,758 +513,666 @@ export default function RegisterPage() {
     return true;
   };
 
-  // Loading registration status
+  // Loading status state
   if (registrationOpen === null) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-4 sm:py-12">
-        <div className="container mx-auto px-4 max-w-4xl">
-          <div className="mb-4 sm:mb-8">
-            <Link href="/" className="text-blue-600 hover:underline text-sm sm:text-base">
-              ← Back to Home
-            </Link>
-          </div>
-          <Card className="shadow-2xl border-0 overflow-hidden">
-            <CardContent className="p-12 flex flex-col items-center justify-center min-h-[280px]">
-              <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mb-4" />
-              <p className="text-slate-600">Checking registration status…</p>
-            </CardContent>
-          </Card>
+      <div className="min-h-screen bg-[#101114] flex items-center justify-center py-12 px-4">
+        <div className="text-center space-y-4">
+          <div className="w-12 h-12 border-2 border-[#D5F05B] border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="text-xs font-mono text-[#A4A5AA] tracking-widest uppercase">
+            CONNECTING TO TOURNAMENT TERMINAL...
+          </p>
         </div>
       </div>
     );
   }
 
-  // Registrations closed
+  // Registrations closed state
   if (registrationOpen === false) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-4 sm:py-12">
-        <div className="container mx-auto px-4 max-w-4xl">
-          <div className="mb-4 sm:mb-8">
-            <Link href="/" className="text-blue-600 hover:underline text-sm sm:text-base">
-              ← Back to Home
+      <div className="min-h-screen bg-[#101114] text-[#F4F1EA] py-16 px-4 flex items-center justify-center">
+        <div className="max-w-md w-full p-8 rounded-3xl bg-[#161820] border border-white/[0.08] text-center shadow-2xl">
+          <div className="w-16 h-16 rounded-2xl bg-[#F15A29]/15 border border-[#F15A29]/30 flex items-center justify-center mx-auto mb-6">
+            <Lock className="w-8 h-8 text-[#F15A29]" />
+          </div>
+          <h2 className="text-2xl font-black font-['Space_Grotesk'] uppercase mb-2">
+            REGISTRATIONS ARE CLOSED
+          </h2>
+          <p className="text-sm text-[#A4A5AA] leading-relaxed mb-6 font-normal">
+            The registration window for Mini Olympics 2026 is currently closed. For queries, contact the FCIT Sports Society.
+          </p>
+          <a
+            href="mailto:sports.oc@pucit.edu.pk"
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-mono font-bold tracking-wider text-[#101114] bg-[#D5F05B] uppercase"
+          >
+            <Mail className="w-4 h-4" />
+            <span>sports.oc@pucit.edu.pk</span>
+          </a>
+          <div className="mt-6 pt-6 border-t border-white/[0.06]">
+            <Link href="/" className="text-xs font-mono text-[#A4A5AA] hover:text-white transition-colors">
+              ← Return to Main Overview
             </Link>
           </div>
-          <Card className="shadow-2xl border-0 overflow-hidden">
-            <div className="h-1 bg-gradient-to-r from-slate-500 to-slate-600" />
-            <CardHeader className="bg-gradient-to-r from-slate-700 via-slate-800 to-slate-900 text-white p-8 sm:p-10 text-center">
-              <div className="mx-auto w-16 h-16 rounded-full bg-white/10 flex items-center justify-center mb-4">
-                <Lock className="h-8 w-8 text-white" />
-              </div>
-              <CardTitle className="text-2xl sm:text-3xl font-extrabold">Registrations are closed</CardTitle>
-              <CardDescription className="text-slate-200 text-base sm:text-lg mt-3 max-w-xl mx-auto">
-                We are not accepting new registrations at the moment. For any questions or updates, please reach out to us.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="p-8 sm:p-10">
-              <div className="text-center space-y-6 max-w-md mx-auto">
-                <p className="text-slate-600">
-                  Direct your queries to:
-                </p>
-                <a
-                  href="mailto:sports.oc@pucit.edu.pk"
-                  className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-slate-800 text-white font-semibold hover:bg-slate-700 transition-colors"
-                >
-                  <Mail className="h-5 w-5" />
-                  sports.oc@pucit.edu.pk
-                </a>
-                <p className="text-sm text-slate-500">
-                  We will get back to you as soon as possible.
-                </p>
-                <Link href="/">
-                  <Button variant="outline" className="mt-4">
-                    ← Back to Home
-                  </Button>
-                </Link>
-              </div>
-            </CardContent>
-          </Card>
         </div>
       </div>
     );
   }
 
+  const stepLabels = [
+    { number: '01', title: 'ATHLETE IDENTITY', desc: 'Captain & Team Specs' },
+    { number: '02', title: 'DISCIPLINES', desc: 'Game Selection & Roster' },
+    { number: '03', title: 'PAYMENT TERMINAL', desc: 'Bank Transfer / Cash Desk' },
+    { number: '04', title: 'FINAL AUDIT', desc: 'Verification & Submit' },
+  ];
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-4 sm:py-12">
-      <div className="container mx-auto px-4 max-w-4xl">
-        <div className="mb-4 sm:mb-8">
-          <Link href="/" className="text-blue-600 hover:underline text-sm sm:text-base">
-            ← Back to Home
+    <div className="min-h-screen bg-[#101114] text-[#F4F1EA] selection:bg-[#D5F05B] selection:text-[#101114] py-10 px-4 sm:px-6 lg:px-8">
+      {/* Background Lighting */}
+      <div className="absolute top-0 left-1/3 w-[600px] h-[400px] bg-[#F15A29]/10 rounded-full blur-[160px] pointer-events-none" />
+      <div className="absolute top-1/2 right-1/4 w-[600px] h-[500px] bg-[#D5F05B]/10 rounded-full blur-[180px] pointer-events-none" />
+
+      <div className="max-w-5xl mx-auto relative z-10">
+        {/* Top Header Bar */}
+        <div className="flex items-center justify-between mb-8 pb-4 border-b border-white/[0.08]">
+          <Link
+            href="/"
+            className="inline-flex items-center gap-2 text-xs font-mono text-[#A4A5AA] hover:text-[#D5F05B] transition-colors uppercase tracking-wider"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span>Return to Portal Overview</span>
           </Link>
+
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-[#D5F05B] animate-pulse" />
+            <span className="text-xs font-mono text-[#D5F05B] tracking-widest uppercase">
+              LIVE REGISTRATION ARENA
+            </span>
+          </div>
         </div>
 
-        <Card className="shadow-2xl border-0 overflow-hidden">
-          <div className="h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500"></div>
-          <CardHeader className="bg-gradient-to-r from-slate-900 via-blue-900 to-indigo-900 text-white p-5 sm:p-8">
-            <CardTitle className="text-2xl sm:text-3xl font-extrabold">Registration Form</CardTitle>
-            <CardDescription className="text-blue-200 text-sm sm:text-base mt-1">
-              Mini Olympics 2026 - FCIT Sports Society
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="p-4 sm:p-6">
-            {/* Progress Steps */}
-            <div className="flex justify-between mb-6 sm:mb-8 gap-2">
-              {[1, 2, 3, 4].map((s) => (
-                <div key={s} className="flex items-center flex-1">
-                  <div className="flex flex-col items-center w-full">
-                    {step >= s ? (
-                      <CheckCircle2 className="h-6 w-6 sm:h-8 sm:w-8 text-blue-600" />
-                    ) : (
-                      <Circle className="h-6 w-6 sm:h-8 sm:w-8 text-gray-300" />
-                    )}
-                    <span className="mt-1 sm:mt-2 text-xs sm:text-sm font-medium text-center">Step {s}</span>
-                  </div>
-                  {s < 4 && (
-                    <div
-                      className={`flex-1 h-1 mx-2 ${
-                        step > s ? 'bg-blue-600' : 'bg-gray-200'
+        {/* Step Progress Milestone Bar */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-10">
+          {stepLabels.map((st, i) => {
+            const stepNum = i + 1;
+            const isCompleted = step > stepNum;
+            const isCurrent = step === stepNum;
+
+            return (
+              <div
+                key={st.number}
+                className={`relative p-3.5 rounded-2xl border transition-all ${isCurrent
+                    ? 'bg-[#1C2028] border-[#D5F05B] shadow-lg shadow-[#D5F05B]/15'
+                    : isCompleted
+                      ? 'bg-[#14161C] border-[#D5F05B]/40 text-[#A4A5AA]'
+                      : 'bg-[#14161C]/60 border-white/[0.06] text-[#A4A5AA]/50'
+                  }`}
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span
+                    className={`text-xs font-mono font-bold ${isCurrent ? 'text-[#D5F05B]' : isCompleted ? 'text-[#D5F05B]' : 'text-white/30'
                       }`}
-                    />
+                  >
+                    STEP {st.number}
+                  </span>
+                  {isCompleted ? (
+                    <CheckCircle2 className="w-4 h-4 text-[#D5F05B]" />
+                  ) : (
+                    <Circle className="w-4 h-4 text-white/20" />
                   )}
                 </div>
-              ))}
-            </div>
+                <div className="font-bold text-xs sm:text-sm text-[#F4F1EA] font-['Space_Grotesk'] uppercase">
+                  {st.title}
+                </div>
+                <div className="text-[10px] text-[#A4A5AA] font-mono truncate">{st.desc}</div>
+              </div>
+            );
+          })}
+        </div>
 
-            {/* Step 1: Personal Information */}
-            {step === 1 && (
-              <div className="space-y-4">
-                <h3 className="text-lg sm:text-xl font-semibold mb-4">Personal Information</h3>
+        {/* Main Content Box */}
+        <div className="p-6 sm:p-10 rounded-3xl bg-[#161820] border border-white/[0.08] shadow-2xl relative">
+          {/* STEP 1: Personal Information */}
+          {step === 1 && (
+            <div className="space-y-6">
+              <div>
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-md bg-[#1B1D21] border border-white/[0.08] text-xs font-mono text-[#D5F05B] uppercase tracking-wider mb-2">
+                  <span>// STEP 01: ATHLETE & SQUAD IDENTITY</span>
+                </div>
+                <h2 className="text-2xl sm:text-3xl font-black text-[#F4F1EA] uppercase font-['Space_Grotesk']">
+                  Captain & Participant Information
+                </h2>
+                <p className="text-xs sm:text-sm text-[#A4A5AA] font-mono mt-1">
+                  Enter your official university student credentials. You will act as the team captain.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 pt-2">
                 <div>
-                  <Label htmlFor="email">Email *</Label>
+                  <Label htmlFor="email" className="text-xs font-mono text-[#A4A5AA] uppercase">
+                    University Email *
+                  </Label>
                   <Input
                     id="email"
                     type="email"
                     value={formData.email}
                     onChange={(e) => handleInputChange('email', e.target.value)}
-                    autoComplete="email"
-                    placeholder="your.email@example.com"
+                    placeholder="student@pucit.edu.pk"
+                    className="mt-1.5 bg-[#101114] border-white/[0.1] text-sm text-[#F4F1EA] rounded-xl focus:border-[#D5F05B]"
                   />
                 </div>
+
                 <div>
-                  <Label htmlFor="name">Full Name *</Label>
+                  <Label htmlFor="name" className="text-xs font-mono text-[#A4A5AA] uppercase">
+                    Full Name *
+                  </Label>
                   <Input
                     id="name"
                     value={formData.name}
                     onChange={(e) => handleInputChange('name', e.target.value)}
-                    autoComplete="name"
-                    placeholder="Enter your full name"
+                    placeholder="e.g. RANA ABDUL REHMAN"
+                    className="mt-1.5 bg-[#101114] border-white/[0.1] text-sm text-[#F4F1EA] rounded-xl focus:border-[#D5F05B]"
                   />
                 </div>
+
                 <div>
-                  <Label htmlFor="rollNumber">Roll Number *</Label>
+                  <Label htmlFor="rollNumber" className="text-xs font-mono text-[#A4A5AA] uppercase">
+                    PUCIT Roll Number *
+                  </Label>
                   <Input
                     id="rollNumber"
                     value={formData.rollNumber}
                     onChange={(e) => handleInputChange('rollNumber', e.target.value)}
-                    autoComplete="off"
-                    placeholder="Enter your roll number"
+                    placeholder="e.g. BCSF23M032"
+                    className="mt-1.5 bg-[#101114] border-white/[0.1] text-sm text-[#F4F1EA] rounded-xl focus:border-[#D5F05B]"
                   />
                 </div>
+
                 <div>
-                  <Label htmlFor="gender">Gender *</Label>
+                  <Label htmlFor="gender" className="text-xs font-mono text-[#A4A5AA] uppercase">
+                    Competition Division (Gender) *
+                  </Label>
                   <Select
                     value={formData.gender}
                     onValueChange={(value) => handleInputChange('gender', value)}
                   >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select gender" />
+                    <SelectTrigger className="mt-1.5 bg-[#101114] border-white/[0.1] text-sm text-[#F4F1EA] rounded-xl focus:border-[#D5F05B]">
+                      <SelectValue placeholder="Select division" />
                     </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="boys">Male</SelectItem>
-                      <SelectItem value="girls">Female</SelectItem>
+                    <SelectContent className="bg-[#181B22] border-white/[0.1] text-[#F4F1EA]">
+                      <SelectItem value="boys">Boys Division</SelectItem>
+                      <SelectItem value="girls">Girls Division</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
-                <div>
-                  <Label htmlFor="teamName">Team Name *</Label>
-                  <div className="flex gap-2">
+
+                <div className="sm:col-span-2">
+                  <Label htmlFor="teamName" className="text-xs font-mono text-[#A4A5AA] uppercase">
+                    Official Team Name *
+                  </Label>
+                  <div className="flex gap-2 mt-1.5">
                     <Input
                       id="teamName"
                       value={formData.teamName}
                       onChange={(e) => handleInputChange('teamName', e.target.value)}
-                      autoComplete="off"
-                      placeholder="Enter your team name (e.g., Thunder Hawks)"
-                      className={`flex-1 ${teamNameStatus === 'taken' ? 'border-red-500' : teamNameStatus === 'available' ? 'border-green-500' : ''}`}
+                      placeholder="e.g. Cyber Strikers / PUCIT Titans"
+                      className={`flex-1 bg-[#101114] border-white/[0.1] text-sm text-[#F4F1EA] rounded-xl ${teamNameStatus === 'taken'
+                          ? 'border-red-500'
+                          : teamNameStatus === 'available'
+                            ? 'border-[#D5F05B]'
+                            : ''
+                        }`}
                     />
                     <Button
                       type="button"
-                      variant="outline"
                       onClick={checkTeamName}
                       disabled={!formData.teamName.trim() || teamNameStatus === 'checking'}
-                      className="whitespace-nowrap"
+                      className="px-6 rounded-xl text-xs font-mono font-bold tracking-wider text-[#101114] bg-[#D5F05B] hover:bg-[#c2de4a]"
                     >
-                      {teamNameStatus === 'checking' ? 'Checking...' : 'Check'}
+                      {teamNameStatus === 'checking' ? 'CHECKING...' : 'CHECK AVAILABILITY'}
                     </Button>
                   </div>
+
                   {teamNameStatus === 'available' && (
-                    <p className="text-xs text-green-600 mt-1 flex items-center gap-1">
-                      <CheckCircle2 className="h-3 w-3" />
-                      Team name is available!
+                    <p className="text-xs text-[#D5F05B] font-mono mt-1.5 flex items-center gap-1.5">
+                      <Check className="w-3.5 h-3.5" />
+                      Team name is available for registration!
                     </p>
                   )}
                   {teamNameStatus === 'taken' && (
-                    <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
-                      <X className="h-3 w-3" />
+                    <p className="text-xs text-red-500 font-mono mt-1.5 flex items-center gap-1.5">
+                      <X className="w-3.5 h-3.5" />
                       {teamNameError}
                     </p>
                   )}
-                  {teamNameStatus === 'idle' && !teamNameError && (
-                    <p className="text-xs text-gray-500 mt-1">Choose a unique name for your team and click &quot;Check&quot;</p>
-                  )}
-                  {teamNameStatus === 'idle' && teamNameError && (
-                    <p className="text-xs text-red-600 mt-1">{teamNameError}</p>
+                  {teamNameStatus === 'idle' && (
+                    <p className="text-xs text-[#A4A5AA]/70 font-mono mt-1">
+                      Choose a unique name and verify before proceeding.
+                    </p>
                   )}
                 </div>
+
                 <div>
-                  <Label htmlFor="contactNumber">Contact Number *</Label>
+                  <Label htmlFor="contactNumber" className="text-xs font-mono text-[#A4A5AA] uppercase">
+                    Primary WhatsApp Contact *
+                  </Label>
                   <Input
                     id="contactNumber"
                     type="tel"
                     value={formData.contactNumber}
                     onChange={(e) => handleInputChange('contactNumber', e.target.value)}
-                    autoComplete="tel"
-                    placeholder="03XX-XXXXXXX"
-                    required
-                    pattern="[0-9]{4}-[0-9]{7}"
-                    title="Format: 03XX-XXXXXXX"
+                    placeholder="0300-1234567"
+                    className="mt-1.5 bg-[#101114] border-white/[0.1] text-sm text-[#F4F1EA] rounded-xl focus:border-[#D5F05B]"
                   />
-                  <p className="text-xs text-gray-500 mt-1">Format: 03XX-XXXXXXX (e.g., 0300-1234567)</p>
                 </div>
+
                 <div>
-                  <Label htmlFor="alternativeContactNumber">Alternative Contact Number (Optional)</Label>
+                  <Label htmlFor="altContact" className="text-xs font-mono text-[#A4A5AA] uppercase">
+                    Alternative Contact (Optional)
+                  </Label>
                   <Input
-                    id="alternativeContactNumber"
+                    id="altContact"
                     type="tel"
                     value={formData.alternativeContactNumber}
                     onChange={(e) => handleInputChange('alternativeContactNumber', e.target.value)}
-                    autoComplete="tel"
-                    placeholder="03XX-XXXXXXX"
+                    placeholder="0321-7654321"
+                    className="mt-1.5 bg-[#101114] border-white/[0.1] text-sm text-[#F4F1EA] rounded-xl focus:border-[#D5F05B]"
                   />
                 </div>
               </div>
-            )}
+            </div>
+          )}
 
-            {/* Step 2: Select Games */}
-            {step === 2 && (
-              <div className="space-y-4">
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 sm:gap-0 mb-4">
-                  <h3 className="text-lg sm:text-xl font-semibold">Select Games</h3>
-                  {formData.gender && (
-                    <div className="text-xs sm:text-sm text-gray-600">
-                      Gender: <span className="font-semibold capitalize">{formData.gender}</span>
-                    </div>
-                  )}
-                </div>
-                {!formData.gender ? (
-                  <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                    <p className="text-yellow-800">Please select your gender in Step 1 first.</p>
+          {/* STEP 2: Game Selection & Team Roster */}
+          {step === 2 && (
+            <div className="space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-md bg-[#1B1D21] border border-white/[0.08] text-xs font-mono text-[#D5F05B] uppercase tracking-wider mb-2">
+                    <span>// STEP 02: DISCIPLINES & ROSTER</span>
                   </div>
-                ) : (
-                  <>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-96 overflow-y-auto p-2">
-                      {availableGames.map((game) => {
-                        const price = formData.gender === 'boys' ? game.boys : game.girls;
-                        const isSelected = formData.selectedGames.includes(game.name);
-                        if (price === null) return null;
-
-                        return (
-                          <div
-                            key={game.name}
-                            onClick={() => handleGameToggle(game.name)}
-                            className={`p-3 sm:p-4 border-2 rounded-lg cursor-pointer transition-all ${
-                              isSelected
-                                ? 'border-blue-600 bg-blue-50 shadow-md'
-                                : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50'
-                            }`}
-                          >
-                            <div className="flex items-center justify-between gap-2">
-                              <div className="flex-1 min-w-0">
-                                <div className="font-semibold text-sm sm:text-base truncate">{game.name}</div>
-                                <div className="text-xs sm:text-sm text-gray-600">
-                                  Rs. {price.toLocaleString()}
-                                  {formData.gender === 'boys' && game.boysPlayers && ` (${game.boysPlayers} Players)`}
-                                  {formData.gender === 'girls' && game.girlsPlayers && ` (${game.girlsPlayers} Players)`}
-                                </div>
-                              </div>
-                              {isSelected && (
-                                <CheckCircle2 className="h-5 w-5 sm:h-6 sm:w-6 text-blue-600 flex-shrink-0" />
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                    {/* Team Member Fields */}
-                    {formData.selectedGames.map((gameName) => {
-                      if (!formData.gender || !isTeamGame(gameName, formData.gender)) return null;
-                      const requiredPlayers = getRequiredPlayers(gameName, formData.gender) || 0;
-                      const teamMembers = formData.teamMembers[gameName] || [];
-                      
-                      return (
-                        <div key={gameName} className="mt-6 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-300 rounded-lg">
-                          <h4 className="font-semibold text-base sm:text-lg mb-3 text-blue-900">
-                            {gameName} - Team Members ({requiredPlayers} players required)
-                          </h4>
-                          <p className="text-xs sm:text-sm text-blue-700 mb-4">
-                            You are the team captain. Please add {requiredPlayers - 1} more team member(s):
-                          </p>
-                          <div className="space-y-4">
-                            {teamMembers.map((member, index) => (
-                              <div key={index} className="bg-white p-3 sm:p-4 rounded-lg border border-blue-200">
-                                <div className="flex items-center gap-2 mb-3">
-                                  <div className="h-8 w-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-semibold text-sm">
-                                    {index + 1}
-                                  </div>
-                                  <span className="font-medium text-sm sm:text-base">Team Member {index + 1}</span>
-                                </div>
-                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                                  <div>
-                                    <Label className="text-xs sm:text-sm">Name</Label>
-                                    <Input
-                                      value={member.name}
-                                      onChange={(e) => handleTeamMemberChange(gameName, index, 'name', e.target.value)}
-                                      placeholder="Full name"
-                                      className="text-sm"
-                                    />
-                                  </div>
-                                  <div>
-                                    <Label className="text-xs sm:text-sm">Roll Number</Label>
-                                    <Input
-                                      value={member.rollNumber}
-                                      onChange={(e) => handleTeamMemberChange(gameName, index, 'rollNumber', e.target.value)}
-                                      placeholder="Roll number"
-                                      className="text-sm"
-                                    />
-                                  </div>
-                                  <div>
-                                    <Label className="text-xs sm:text-sm">Contact Number</Label>
-                                    <Input
-                                      value={member.contactNumber}
-                                      onChange={(e) => handleTeamMemberChange(gameName, index, 'contactNumber', e.target.value)}
-                                      placeholder="03XX-XXXXXXX"
-                                      className="text-sm"
-                                    />
-                                  </div>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    })}
-
-                    {formData.selectedGames.length > 0 && (
-                      <div className="mt-6 p-3 sm:p-4 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-300 rounded-lg">
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-2">
-                            <DollarSign className="h-5 w-5 sm:h-6 sm:w-6 text-green-600" />
-                            <span className="font-semibold text-base sm:text-lg">Total Amount:</span>
-                          </div>
-                          <span className="text-xl sm:text-2xl font-bold text-green-700">
-                            Rs. {totalAmount.toLocaleString()}
-                          </span>
-                        </div>
-                        <div className="mt-2 text-xs sm:text-sm text-gray-600">
-                          {formData.selectedGames.length} game(s) selected
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Sport Groups Preview */}
-                    {formData.selectedGames.length > 0 && (
-                      <div className="mt-6 p-4 bg-gradient-to-r from-purple-50 to-indigo-50 border-2 border-purple-200 rounded-lg">
-                        <h4 className="font-semibold text-base sm:text-lg mb-3 flex items-center gap-2 text-purple-900">
-                          <Users className="h-5 w-5 text-purple-600" />
-                          WhatsApp Groups (Join After Payment)
-                        </h4>
-                        <p className="text-xs sm:text-sm text-purple-700 mb-4">
-                          After registration, you&apos;ll need to join these WhatsApp groups for updates:
-                        </p>
-                        {groupsLoading ? (
-                          <div className="text-center py-4 text-slate-500">Loading groups...</div>
-                        ) : sportGroups.length > 0 ? (
-                          <div className="space-y-3">
-                            {sportGroups.map((g, idx) => (
-                              <div key={idx} className="bg-white p-3 rounded-lg border border-purple-100 flex items-center justify-between gap-3">
-                                <div className="flex-1 min-w-0">
-                                  <p className="font-medium text-sm sm:text-base text-slate-800 truncate">
-                                    {g.groupTitle || g.gameName}
-                                  </p>
-                                  <p className="text-xs text-slate-500">{g.gameName}</p>
-                                </div>
-                                {g.groupUrl ? (
-                                  <span className="px-3 py-1 bg-green-100 text-green-700 text-xs font-medium rounded-full flex-shrink-0">
-                                    Group Available
-                                  </span>
-                                ) : (
-                                  <span className="px-3 py-1 bg-amber-100 text-amber-700 text-xs font-medium rounded-full flex-shrink-0">
-                                    Coming Soon
-                                  </span>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <div className="text-center py-4 text-slate-500 text-sm">
-                            No groups configured for selected games yet.
-                          </div>
-                        )}
-                        <p className="text-xs text-purple-600 mt-4 italic">
-                          * You will get direct group links after completing your registration
-                        </p>
-                      </div>
-                    )}
-                  </>
-                )}
+                  <h2 className="text-2xl sm:text-3xl font-black text-[#F4F1EA] uppercase font-['Space_Grotesk']">
+                    Select Your Events
+                  </h2>
+                </div>
+                <div className="px-3.5 py-1.5 rounded-xl bg-[#101114] border border-white/[0.08] text-xs font-mono text-[#D5F05B]">
+                  Division: <span className="font-bold uppercase">{formData.gender}</span>
+                </div>
               </div>
-            )}
 
-            {/* Step 3: Payment Method */}
-            {step === 3 && (
-              <div className="space-y-4">
-                <div className="mb-4 p-3 sm:p-4 bg-blue-50 border-2 border-blue-200 rounded-lg">
-                  <div className="flex items-center justify-between">
-                    <span className="font-semibold text-sm sm:text-base">Total Amount:</span>
-                    <span className="text-xl sm:text-2xl font-bold text-blue-700">
-                      Rs. {totalAmount.toLocaleString()}
-                    </span>
-                  </div>
-                  {appliedCoupon && (
-                    <>
-                      <div className="mt-2 flex items-center justify-between text-sm text-blue-600">
-                        <span>Coupon {appliedCoupon.code} ({appliedCoupon.discountPercent}% off):</span>
-                        <span>- Rs. {discountAmount.toLocaleString()}</span>
-                      </div>
-                      {formData.selectedGames.includes(GAME_EXCLUDED_FROM_COUPON) && (
-                        <p className="mt-1 text-xs text-slate-600">Discount does not apply to Swimming.</p>
-                      )}
-                      <div className="mt-2 flex items-center justify-between border-t border-blue-200 pt-2">
-                        <span className="font-semibold">Amount to pay:</span>
-                        <span className="text-xl font-bold text-blue-800">Rs. {finalAmount.toLocaleString()}</span>
-                      </div>
-                    </>
-                  )}
-                </div>
-                <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Tag className="h-4 w-4 text-amber-600" />
-                    <span className="font-semibold text-sm">Coupon code</span>
-                  </div>
-                  {appliedCoupon ? (
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-sm text-green-700 font-medium">{appliedCoupon.code} applied ({appliedCoupon.discountPercent}% off)</span>
-                      <Button type="button" variant="outline" size="sm" onClick={handleRemoveCoupon} className="text-red-600 border-red-200 hover:bg-red-50">Remove</Button>
-                    </div>
-                  ) : (
-                    <div className="flex gap-2 flex-wrap items-center">
-                      <Input
-                        value={couponInput}
-                        onChange={(e) => { setCouponInput(e.target.value.toUpperCase()); setCouponError(''); }}
-                        placeholder="Enter code"
-                        className="max-w-[120px]"
-                      />
-                      <Button type="button" variant="outline" size="sm" onClick={handleApplyCoupon} disabled={validatingCoupon || !couponInput.trim()}>
-                        {validatingCoupon ? 'Checking...' : 'Apply'}
-                      </Button>
-                      {couponError && <span className="text-sm text-red-600">{couponError}</span>}
-                    </div>
-                  )}
-                </div>
-                <Label>Payment Method *</Label>
-                <div className="space-y-4">
-                  <div
-                    className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
-                      formData.paymentMethod === 'online'
-                        ? 'border-blue-600 bg-blue-50 shadow-md'
-                        : 'border-gray-200 hover:border-blue-300'
-                    }`}
-                    onClick={() => handleInputChange('paymentMethod', 'online')}
-                  >
-                    <div className="flex items-center gap-2 mb-2">
-                      <input
-                        type="radio"
-                        checked={formData.paymentMethod === 'online'}
-                        onChange={() => handleInputChange('paymentMethod', 'online')}
-                      />
-                      <span className="font-semibold">Online Payment</span>
-                    </div>
-                    {formData.paymentMethod === 'online' && (
-                      <div className="mt-4 space-y-4">
-                        {/* Bank Account Details */}
-                        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-300 rounded-lg p-3 sm:p-4">
-                          <h3 className="font-semibold text-base sm:text-lg mb-3 flex items-center gap-2">
-                            <DollarSign className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
-                            Bank Account Details
-                          </h3>
-                          <div className="space-y-3">
-                            <div>
-                              <Label className="text-xs sm:text-sm text-gray-600">Bank Name</Label>
-                              <p className="font-semibold text-base sm:text-lg">Easypaisa</p>
-                            </div>
-                            <div>
-                              <Label className="text-xs sm:text-sm text-gray-600">Account Name</Label>
-                              <p className="font-semibold text-base sm:text-lg">Muhammad Moin U Din</p>
-                            </div>
-                            <div>
-                              <Label className="text-xs sm:text-sm text-gray-600">Account Number</Label>
-                              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 mt-1">
-                                <p className="font-mono font-semibold text-base sm:text-lg text-blue-700 break-all">
-                                  03028791634
-                                </p>
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={async () => {
-                                    try {
-                                      await navigator.clipboard.writeText('0863286208011');
-                                      setAccountCopied(true);
-                                      setTimeout(() => setAccountCopied(false), 2000);
-                                    } catch (err) {
-                                      console.error('Failed to copy:', err);
-                                    }
-                                  }}
-                                  className={`flex items-center gap-1 ${
-                                    accountCopied
-                                      ? 'bg-green-100 text-green-700 border-green-300'
-                                      : ''
-                                  }`}
-                                >
-                                  <Copy className="h-4 w-4" />
-                                  {accountCopied ? 'Copied!' : 'Copy'}
-                                </Button>
-                              </div>
-                            </div>
-                          </div>
-                          <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                            <p className="text-xs sm:text-sm text-yellow-800">
-                              <strong>Important:</strong> Please transfer the exact amount (
-                              <strong>Rs. {finalAmount.toLocaleString()}</strong>) to this account
-                              and keep the transaction receipt.
-                            </p>
-                          </div>
-                        </div>
+              {/* Games Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 max-h-[380px] overflow-y-auto pr-1">
+                {availableGames.map((game) => {
+                  const price = formData.gender === 'boys' ? game.boys : game.girls;
+                  const isSelected = formData.selectedGames.includes(game.name);
+                  if (price === null) return null;
 
-                        <div>
-                          <Label htmlFor="transactionId">Transaction ID *</Label>
-                          <Input
-                            id="transactionId"
-                            value={formData.transactionId}
-                            onChange={(e) => handleInputChange('transactionId', e.target.value)}
-                            placeholder="Enter transaction ID from your bank receipt"
-                            required
-                          />
-                          <p className="text-xs text-gray-500 mt-1">
-                            Enter the transaction ID from your bank transfer receipt
-                          </p>
-                        </div>
-                        <div>
-                          <Label htmlFor="screenshot">Payment Proof (Screenshot/Image) *</Label>
-                          <Input
-                            id="screenshot"
-                            type="file"
-                            accept="image/*"
-                            onChange={handleFileUpload}
-                            required
-                          />
-                          {formData.screenshotUrl && (
-                            <p className="text-sm text-green-600 mt-2 flex items-center gap-1">
-                              <CheckCircle2 className="h-4 w-4" />
-                              Payment proof uploaded successfully
-                            </p>
-                          )}
-                          <p className="text-xs text-gray-500 mt-1">
-                            Upload a screenshot or photo of your bank transfer receipt
-                          </p>
-                        </div>
-                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                          <p className="text-sm text-gray-700">
-                            <strong>Status:</strong>{' '}
-                            <span className="font-semibold text-blue-700">Pending Verification</span>
-                          </p>
-                          <p className="text-xs text-gray-600 mt-1">
-                            Your payment will be verified by admin after submission
-                          </p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {cashPaymentEnabled && (
+                  return (
                     <div
-                      className={`p-3 sm:p-4 border-2 rounded-lg cursor-pointer transition-all ${
-                        formData.paymentMethod === 'cash'
-                          ? 'border-blue-600 bg-blue-50 shadow-md'
-                          : 'border-gray-200 hover:border-blue-300'
-                      }`}
-                      onClick={() => handleInputChange('paymentMethod', 'cash')}
+                      key={game.name}
+                      onClick={() => handleGameToggle(game.name)}
+                      className={`p-4 rounded-2xl border cursor-pointer transition-all flex items-center justify-between gap-3 ${isSelected
+                          ? 'bg-[#1F2430] border-[#D5F05B] shadow-md shadow-[#D5F05B]/15'
+                          : 'bg-[#101114] border-white/[0.07] hover:border-white/[0.2]'
+                        }`}
                     >
-                      <div className="flex items-center gap-2 mb-2">
-                        <input
-                          type="radio"
-                          checked={formData.paymentMethod === 'cash'}
-                          onChange={() => handleInputChange('paymentMethod', 'cash')}
-                        />
-                        <span className="font-semibold">Cash Payment</span>
-                      </div>
-                      {formData.paymentMethod === 'cash' && (
-                        <div className="mt-4">
-                          <p className="text-xs sm:text-sm text-gray-700 mb-2">
-                            Cash registration requires payment at the FCIT Sports Society desk.
-                          </p>
-                          <p className="text-xs sm:text-sm text-gray-600">
-                            Status: <span className="font-semibold">Will Confirm Soon</span>
-                          </p>
-                          <p className="text-xs sm:text-sm text-gray-500 mt-2">
-                            A cash slip ID will be generated after submission.
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Step 4: Review */}
-            {step === 4 && (
-              <div className="space-y-4">
-                <h3 className="text-lg sm:text-xl font-semibold mb-4">Review Your Registration</h3>
-                <div className="space-y-3 bg-gray-50 p-3 sm:p-4 rounded-lg">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                    <div>
-                      <p className="text-xs sm:text-sm text-gray-600">Email</p>
-                      <p className="font-semibold text-sm sm:text-base break-all">{formData.email}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs sm:text-sm text-gray-600">Name</p>
-                      <p className="font-semibold text-sm sm:text-base break-words">{formData.name}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs sm:text-sm text-gray-600">Roll Number</p>
-                      <p className="font-semibold text-sm sm:text-base">{formData.rollNumber}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs sm:text-sm text-gray-600">Gender</p>
-                      <p className="font-semibold capitalize text-sm sm:text-base">{formData.gender}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs sm:text-sm text-gray-600">Contact Number</p>
-                      <p className="font-semibold text-sm sm:text-base break-all">{formData.contactNumber}</p>
-                    </div>
-                    {formData.alternativeContactNumber && (
                       <div>
-                        <p className="text-xs sm:text-sm text-gray-600">Alternative Contact</p>
-                        <p className="font-semibold text-sm sm:text-base break-all">{formData.alternativeContactNumber}</p>
+                        <div className="font-bold text-sm text-[#F4F1EA] font-['Space_Grotesk']">{game.name}</div>
+                        <div className="text-xs font-mono text-[#A4A5AA] mt-0.5">
+                          Rs. {price.toLocaleString()}
+                          {formData.gender === 'boys' && game.boysPlayers && ` • ${game.boysPlayers} Players`}
+                          {formData.gender === 'girls' && game.girlsPlayers && ` • ${game.girlsPlayers} Players`}
+                        </div>
                       </div>
-                    )}
-                  </div>
-                  <div className="border-t pt-3">
-                    <p className="text-xs sm:text-sm text-gray-600 mb-2">Selected Games ({formData.selectedGames.length})</p>
-                    <div className="flex flex-wrap gap-2 mb-3">
-                      {formData.selectedGames.map((game) => (
-                        <span
-                          key={game}
-                          className="px-2 sm:px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-xs sm:text-sm"
-                        >
-                          {game}
-                        </span>
+
+                      <div
+                        className={`w-6 h-6 rounded-lg flex items-center justify-center border transition-colors ${isSelected
+                            ? 'bg-[#D5F05B] border-[#D5F05B] text-[#101114]'
+                            : 'border-white/[0.2] text-transparent'
+                          }`}
+                      >
+                        <Check className="w-4 h-4 font-black" />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Team Member Roster Requirements */}
+              {formData.selectedGames.map((gameName) => {
+                if (!formData.gender || !isTeamGame(gameName, formData.gender)) return null;
+                const requiredPlayers = getRequiredPlayers(gameName, formData.gender) || 0;
+                const teamMembers = formData.teamMembers[gameName] || [];
+
+                return (
+                  <div key={gameName} className="p-5 rounded-2xl bg-[#101114] border border-[#F15A29]/30">
+                    <h4 className="font-bold text-sm sm:text-base text-[#F4F1EA] font-['Space_Grotesk'] uppercase mb-1">
+                      {gameName} — SQUAD ROSTER ({requiredPlayers} PLAYERS TOTAL)
+                    </h4>
+                    <p className="text-xs text-[#A4A5AA] font-mono mb-4">
+                      You are Captain ({formData.name || 'Yourself'}). Please add the remaining {requiredPlayers - 1} team members:
+                    </p>
+
+                    <div className="space-y-3">
+                      {teamMembers.map((member, idx) => (
+                        <div key={idx} className="p-3.5 rounded-xl bg-[#161820] border border-white/[0.06] grid grid-cols-1 sm:grid-cols-3 gap-3">
+                          <Input
+                            value={member.name}
+                            onChange={(e) => handleTeamMemberChange(gameName, idx, 'name', e.target.value)}
+                            placeholder={`Player ${idx + 2} Full Name`}
+                            className="bg-[#101114] border-white/[0.08] text-xs text-[#F4F1EA] rounded-lg"
+                          />
+                          <Input
+                            value={member.rollNumber}
+                            onChange={(e) => handleTeamMemberChange(gameName, idx, 'rollNumber', e.target.value)}
+                            placeholder="Roll Number (e.g. BCSF22M...)"
+                            className="bg-[#101114] border-white/[0.08] text-xs text-[#F4F1EA] rounded-lg"
+                          />
+                          <Input
+                            value={member.contactNumber}
+                            onChange={(e) => handleTeamMemberChange(gameName, idx, 'contactNumber', e.target.value)}
+                            placeholder="Contact Number (03XX...)"
+                            className="bg-[#101114] border-white/[0.08] text-xs text-[#F4F1EA] rounded-lg"
+                          />
+                        </div>
                       ))}
                     </div>
-                    {/* Display Team Members */}
-                    {formData.selectedGames.map((gameName) => {
-                      if (!formData.gender || !isTeamGame(gameName, formData.gender)) return null;
-                      const teamMembers = formData.teamMembers[gameName] || [];
-                      if (teamMembers.length === 0) return null;
-                      
-                      return (
-                        <div key={gameName} className="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                          <p className="text-xs sm:text-sm font-semibold text-blue-900 mb-2">{gameName} Team Members:</p>
-                          <div className="space-y-2">
-                            {teamMembers.map((member, index) => (
-                              <div key={index} className="text-xs sm:text-sm text-gray-700">
-                                <span className="font-medium">{index + 1}. {member.name}</span>
-                                <span className="text-gray-500 ml-2">({member.rollNumber})</span>
-                              </div>
-                            ))}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* STEP 3: Payment Terminal */}
+          {step === 3 && (
+            <div className="space-y-6">
+              <div>
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-md bg-[#1B1D21] border border-white/[0.08] text-xs font-mono text-[#D5F05B] uppercase tracking-wider mb-2">
+                  <span>// STEP 03: PAYMENT TERMINAL</span>
+                </div>
+                <h2 className="text-2xl sm:text-3xl font-black text-[#F4F1EA] uppercase font-['Space_Grotesk']">
+                  Complete Your Payment
+                </h2>
+              </div>
+
+              {/* Coupon Code Section */}
+              <div className="p-4 rounded-2xl bg-[#101114] border border-white/[0.08]">
+                <div className="flex items-center gap-2 text-xs font-mono text-[#D5F05B] mb-2 uppercase">
+                  <Tag className="w-3.5 h-3.5" />
+                  <span>Promotional Coupon Code</span>
+                </div>
+
+                {appliedCoupon ? (
+                  <div className="flex items-center justify-between p-3 rounded-xl bg-[#D5F05B]/10 border border-[#D5F05B]/30">
+                    <span className="text-xs font-mono font-bold text-[#D5F05B]">
+                      COUPON {appliedCoupon.code} APPLIED ({appliedCoupon.discountPercent}% OFF)
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleRemoveCoupon}
+                      className="text-xs font-mono text-red-400 hover:underline"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex gap-2 max-w-sm">
+                    <Input
+                      value={couponInput}
+                      onChange={(e) => {
+                        setCouponInput(e.target.value.toUpperCase());
+                        setCouponError('');
+                      }}
+                      placeholder="ENTER CODE"
+                      className="bg-[#161820] border-white/[0.1] text-xs font-mono text-[#F4F1EA] uppercase rounded-xl"
+                    />
+                    <Button
+                      type="button"
+                      onClick={handleApplyCoupon}
+                      disabled={validatingCoupon || !couponInput.trim()}
+                      className="rounded-xl text-xs font-mono font-bold text-[#101114] bg-[#D5F05B] hover:bg-[#c2de4a]"
+                    >
+                      {validatingCoupon ? 'VERIFYING...' : 'APPLY'}
+                    </Button>
+                  </div>
+                )}
+                {couponError && <p className="text-xs text-red-500 font-mono mt-1.5">{couponError}</p>}
+              </div>
+
+              {/* Payment Methods */}
+              <div className="space-y-4">
+                {/* Online Payment Card */}
+                <div
+                  onClick={() => handleInputChange('paymentMethod', 'online')}
+                  className={`p-5 rounded-2xl border cursor-pointer transition-all ${formData.paymentMethod === 'online'
+                      ? 'bg-[#1C2028] border-[#D5F05B] shadow-xl shadow-[#D5F05B]/10'
+                      : 'bg-[#101114] border-white/[0.08] hover:border-white/[0.2]'
+                    }`}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-3">
+                      <CreditCard className="w-5 h-5 text-[#D5F05B]" />
+                      <span className="font-bold text-sm sm:text-base text-[#F4F1EA] font-['Space_Grotesk'] uppercase">
+                        Online Transfer (Easypaisa / Bank)
+                      </span>
+                    </div>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#D5F05B]/15 text-[#D5F05B]">
+                      RECOMMENDED
+                    </span>
+                  </div>
+
+                  {formData.paymentMethod === 'online' && (
+                    <div className="mt-4 pt-4 border-t border-white/[0.08] space-y-4">
+                      {/* Bank Details Box */}
+                      <div className="p-4 rounded-xl bg-[#101114] border border-white/[0.08] space-y-2.5 font-mono text-xs">
+                        <div className="flex justify-between">
+                          <span className="text-[#A4A5AA]">Bank / Provider:</span>
+                          <span className="font-bold text-[#F4F1EA]">Easypaisa</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-[#A4A5AA]">Account Title:</span>
+                          <span className="font-bold text-[#F4F1EA]">Muhammad Moin U Din</span>
+                        </div>
+                        <div className="flex items-center justify-between pt-1 border-t border-white/[0.06]">
+                          <span className="text-[#A4A5AA]">Account Number:</span>
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-[#D5F05B]">03028791634</span>
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                try {
+                                  await navigator.clipboard.writeText('03028791634');
+                                  setAccountCopied(true);
+                                  setTimeout(() => setAccountCopied(false), 2000);
+                                } catch { }
+                              }}
+                              className="px-2 py-0.5 rounded text-[10px] bg-white/[0.08] text-white hover:bg-white/[0.15]"
+                            >
+                              {accountCopied ? 'Copied!' : 'Copy'}
+                            </button>
                           </div>
                         </div>
-                      );
-                    })}
-                  </div>
-                  <div className="border-t pt-3">
-                    {appliedCoupon ? (
-                      <div className="space-y-2">
-                        <div className="flex justify-between items-center text-sm">
-                          <span className="text-gray-600">Subtotal</span>
-                          <span>Rs. {totalAmount.toLocaleString()}</span>
+                        <div className="p-2.5 rounded-lg bg-yellow-500/10 border border-yellow-500/20 text-yellow-300 text-[11px]">
+                          Transfer exact amount (<strong>Rs. {finalAmount.toLocaleString()}</strong>) and upload your payment proof screenshot below.
                         </div>
-                        <div className="flex justify-between items-center text-sm text-green-700">
-                          <span>Coupon {appliedCoupon.code} ({appliedCoupon.discountPercent}% off)</span>
-                          <span>- Rs. {discountAmount.toLocaleString()}</span>
-                        </div>
-                        {formData.selectedGames.includes(GAME_EXCLUDED_FROM_COUPON) && (
-                          <p className="text-xs text-slate-500">Discount does not apply to Swimming.</p>
-                        )}
-                        <div className="flex justify-between items-center pt-1 border-t">
-                          <p className="text-xs sm:text-sm text-gray-600 font-medium">Total Amount</p>
-                          <p className="text-xl sm:text-2xl font-bold text-green-600">
-                            Rs. {finalAmount.toLocaleString()}
+                      </div>
+
+                      <div>
+                        <Label htmlFor="txId" className="text-xs font-mono text-[#A4A5AA] uppercase">
+                          Bank Transaction ID / Reference *
+                        </Label>
+                        <Input
+                          id="txId"
+                          value={formData.transactionId}
+                          onChange={(e) => handleInputChange('transactionId', e.target.value)}
+                          placeholder="e.g. 2389104829"
+                          className="mt-1 bg-[#101114] border-white/[0.1] text-xs font-mono text-[#F4F1EA] rounded-xl"
+                        />
+                      </div>
+
+                      <div>
+                        <Label htmlFor="proof" className="text-xs font-mono text-[#A4A5AA] uppercase">
+                          Upload Payment Proof Screenshot *
+                        </Label>
+                        <Input
+                          id="proof"
+                          type="file"
+                          accept="image/*"
+                          onChange={handleFileUpload}
+                          className="mt-1 bg-[#101114] border-white/[0.1] text-xs text-[#F4F1EA] rounded-xl file:bg-[#181B22] file:text-white file:border-0 file:rounded-lg file:mr-3"
+                        />
+                        {formData.screenshotUrl && (
+                          <p className="text-xs text-[#D5F05B] font-mono mt-1.5 flex items-center gap-1">
+                            <Check className="w-3.5 h-3.5" />
+                            Receipt proof attached successfully.
                           </p>
-                        </div>
+                        )}
                       </div>
-                    ) : (
-                      <div className="flex justify-between items-center">
-                        <p className="text-xs sm:text-sm text-gray-600">Total Amount</p>
-                        <p className="text-xl sm:text-2xl font-bold text-green-600">
-                          Rs. {finalAmount.toLocaleString()}
-                        </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Cash Payment Card (if enabled) */}
+                {cashPaymentEnabled && (
+                  <div
+                    onClick={() => handleInputChange('paymentMethod', 'cash')}
+                    className={`p-5 rounded-2xl border cursor-pointer transition-all ${formData.paymentMethod === 'cash'
+                        ? 'bg-[#1C2028] border-[#D5F05B] shadow-xl shadow-[#D5F05B]/10'
+                        : 'bg-[#101114] border-white/[0.08] hover:border-white/[0.2]'
+                      }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <QrCode className="w-5 h-5 text-[#F15A29]" />
+                      <span className="font-bold text-sm sm:text-base text-[#F4F1EA] font-['Space_Grotesk'] uppercase">
+                        Cash Desk Payment (Slip Verification)
+                      </span>
+                    </div>
+
+                    {formData.paymentMethod === 'cash' && (
+                      <div className="mt-3 pt-3 border-t border-white/[0.08] text-xs font-mono text-[#A4A5AA]">
+                        An instant Cash Slip ID will be generated upon submission. Present your slip ID or QR code at the FCIT Sports Society registration desk to complete payment.
                       </div>
                     )}
                   </div>
-                  <div className="border-t pt-3">
-                    <p className="text-xs sm:text-sm text-gray-600">Payment Method</p>
-                    <p className="font-semibold capitalize text-sm sm:text-base">{formData.paymentMethod}</p>
-                    {formData.transactionId && (
-                      <p className="text-xs sm:text-sm text-gray-600 mt-1 break-all">
-                        Transaction ID: {formData.transactionId}
-                      </p>
-                    )}
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* STEP 4: Review and Submit */}
+          {step === 4 && (
+            <div className="space-y-6">
+              <div>
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-md bg-[#1B1D21] border border-white/[0.08] text-xs font-mono text-[#D5F05B] uppercase tracking-wider mb-2">
+                  <span>// STEP 04: FINAL AUDIT & CONFIRMATION</span>
+                </div>
+                <h2 className="text-2xl sm:text-3xl font-black text-[#F4F1EA] uppercase font-['Space_Grotesk']">
+                  Review Registration Details
+                </h2>
+              </div>
+
+              <div className="p-6 rounded-2xl bg-[#101114] border border-white/[0.08] space-y-4 font-mono text-xs">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pb-4 border-b border-white/[0.06]">
+                  <div>
+                    <span className="text-[#A4A5AA] block">ATHLETE NAME</span>
+                    <span className="text-sm font-bold text-[#F4F1EA]">{formData.name}</span>
+                  </div>
+                  <div>
+                    <span className="text-[#A4A5AA] block">ROLL NUMBER</span>
+                    <span className="text-sm font-bold text-[#F4F1EA]">{formData.rollNumber}</span>
+                  </div>
+                  <div>
+                    <span className="text-[#A4A5AA] block">OFFICIAL TEAM NAME</span>
+                    <span className="text-sm font-bold text-[#D5F05B]">{formData.teamName}</span>
+                  </div>
+                  <div>
+                    <span className="text-[#A4A5AA] block">DIVISION & CONTACT</span>
+                    <span className="text-sm font-bold text-[#F4F1EA] uppercase">
+                      {formData.gender} • {formData.contactNumber}
+                    </span>
+                  </div>
+                </div>
+
+                <div>
+                  <span className="text-[#A4A5AA] block mb-2">SELECTED DISCIPLINES ({formData.selectedGames.length})</span>
+                  <div className="flex flex-wrap gap-2">
+                    {formData.selectedGames.map((g) => (
+                      <span key={g} className="px-3 py-1 rounded-lg bg-[#181B22] border border-white/[0.08] text-[#F4F1EA] font-semibold text-xs">
+                        {g}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="pt-4 border-t border-white/[0.06] space-y-1.5">
+                  <div className="flex justify-between">
+                    <span className="text-[#A4A5AA]">Subtotal:</span>
+                    <span className="font-bold text-[#F4F1EA]">Rs. {totalAmount.toLocaleString()}</span>
+                  </div>
+                  {appliedCoupon && (
+                    <div className="flex justify-between text-[#D5F05B]">
+                      <span>Discount ({appliedCoupon.code} - {appliedCoupon.discountPercent}%):</span>
+                      <span>- Rs. {discountAmount.toLocaleString()}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between pt-2 border-t border-white/[0.08] text-sm">
+                    <span className="font-bold text-white uppercase">Final Payable Amount:</span>
+                    <span className="font-black text-lg text-[#D5F05B]">
+                      Rs. {finalAmount.toLocaleString()}
+                    </span>
                   </div>
                 </div>
               </div>
-            )}
-
-            {/* Navigation Buttons */}
-            <div className="flex flex-col sm:flex-row justify-between gap-3 sm:gap-0 mt-6 sm:mt-8">
-              <Button
-                variant="outline"
-                onClick={() => setStep((s) => Math.max(1, s - 1))}
-                disabled={step === 1}
-                className="w-full sm:w-auto text-sm sm:text-base"
-              >
-                Previous
-              </Button>
-              {step < 4 ? (
-                <Button
-                  onClick={() => setStep((s) => s + 1)}
-                  disabled={!canProceed()}
-                  className="bg-gradient-to-r from-blue-600 to-indigo-600 w-full sm:w-auto text-sm sm:text-base"
-                >
-                  Next
-                </Button>
-              ) : (
-                <Button
-                  onClick={handleSubmit}
-                  disabled={loading || !canProceed()}
-                  className="bg-gradient-to-r from-green-600 to-emerald-600 w-full sm:w-auto text-sm sm:text-base"
-                >
-                  {loading ? 'Submitting...' : 'Submit Registration'}
-                </Button>
-              )}
             </div>
-          </CardContent>
-        </Card>
+          )}
+
+          {/* Step Actions */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-8 pt-6 border-t border-white/[0.08]">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setStep((s) => Math.max(1, s - 1))}
+              disabled={step === 1}
+              className="w-full sm:w-auto px-6 py-3 rounded-xl text-xs font-mono font-bold tracking-wider uppercase bg-transparent text-[#A4A5AA] hover:text-white border-white/[0.1] hover:border-white/[0.2]"
+            >
+              PREVIOUS STEP
+            </Button>
+
+            {step < 4 ? (
+              <Button
+                type="button"
+                onClick={() => setStep((s) => s + 1)}
+                disabled={!canProceed()}
+                className="w-full sm:w-auto px-8 py-3 rounded-xl text-xs font-mono font-black tracking-wider text-[#101114] bg-[#D5F05B] hover:bg-[#c2de4a] uppercase transition-all shadow-lg shadow-[#D5F05B]/20"
+              >
+                PROCEED TO STEP {step + 1} →
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                onClick={handleSubmit}
+                disabled={loading || !canProceed()}
+                className="w-full sm:w-auto px-10 py-3.5 rounded-xl text-xs font-mono font-black tracking-wider text-[#101114] bg-[#D5F05B] hover:bg-[#c2de4a] uppercase transition-all shadow-xl shadow-[#D5F05B]/30"
+              >
+                {loading ? 'SUBMITTING TO DATABASE...' : 'SUBMIT REGISTRATION NOW ✦'}
+              </Button>
+            )}
+          </div>
+        </div>
       </div>
     </div>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-[#101114] flex items-center justify-center">
+          <div className="w-10 h-10 border-2 border-[#D5F05B] border-t-transparent rounded-full animate-spin" />
+        </div>
+      }
+    >
+      <RegisterForm />
+    </Suspense>
   );
 }
