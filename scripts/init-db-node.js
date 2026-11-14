@@ -20,7 +20,7 @@ function loadEnv() {
     const envPath = path.join(__dirname, '..', envFile);
     if (fs.existsSync(envPath)) {
       const content = fs.readFileSync(envPath, 'utf8');
-      content.split('\n').forEach(line => {
+      content.split(/\r?\n/).forEach(line => {
         const match = line.match(/^([^#=]+)=(.*)$/);
         if (match) {
           const key = match[1].trim();
