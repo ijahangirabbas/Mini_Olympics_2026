@@ -2,11 +2,28 @@
 
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useState, useEffect, Suspense } from 'react';
+import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { CheckCircle2, XCircle, Loader2, DollarSign, User, Phone, Mail, Trophy, Lock } from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
+import {
+  CheckCircle2,
+  XCircle,
+  Loader2,
+  DollarSign,
+  User,
+  Phone,
+  Mail,
+  Trophy,
+  Lock,
+  ArrowLeft,
+  ShieldCheck,
+  Search,
+  Tag,
+  Check,
+  AlertCircle,
+} from 'lucide-react';
 
 type Registration = {
   id: string;
@@ -30,10 +47,12 @@ type Registration = {
 function VerifyCashContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const regNum = searchParams.get('regNum');
-  const slipId = searchParams.get('slipId');
+  const regNum = searchParams?.get('regNum');
+  const slipId = searchParams?.get('slipId');
+
+  const [lookupQuery, setLookupQuery] = useState('');
   const [registration, setRegistration] = useState<Registration | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [approving, setApproving] = useState(false);
   const [error, setError] = useState('');
   const [authenticated, setAuthenticated] = useState(false);
@@ -46,14 +65,12 @@ function VerifyCashContent() {
   const [discount, setDiscount] = useState<string>('0');
 
   useEffect(() => {
-    // Check admin authentication first
     checkAuth();
   }, []);
 
   useEffect(() => {
-    // Only fetch registration if authenticated
     if (authenticated && (regNum || slipId)) {
-      fetchRegistration();
+      fetchRegistration(regNum, slipId);
     } else if (!checkingAuth && !authenticated) {
       setShowLogin(true);
       setLoading(false);
@@ -61,7 +78,6 @@ function VerifyCashContent() {
   }, [authenticated, regNum, slipId, checkingAuth]);
 
   useEffect(() => {
-    // Set discount from registration when loaded
     if (registration && registration.discount !== null && registration.discount !== undefined) {
       setDiscount(registration.discount.toString());
     }
@@ -76,8 +92,7 @@ function VerifyCashContent() {
       } else {
         setShowLogin(true);
       }
-    } catch (error) {
-      console.error('Auth check error:', error);
+    } catch {
       setShowLogin(true);
     } finally {
       setCheckingAuth(false);
@@ -100,26 +115,26 @@ function VerifyCashContent() {
       if (data.success) {
         setAuthenticated(true);
         setShowLogin(false);
-        // Fetch registration after login
         if (regNum || slipId) {
-          fetchRegistration();
+          fetchRegistration(regNum, slipId);
         }
       } else {
         setLoginError(data.error || 'Invalid credentials');
       }
-    } catch (error) {
-      console.error('Login error:', error);
+    } catch {
       setLoginError('Login failed. Please try again.');
     } finally {
       setLoggingIn(false);
     }
   };
 
-  const fetchRegistration = async () => {
+  const fetchRegistration = async (rNum?: string | null, sId?: string | null) => {
+    setLoading(true);
+    setError('');
     try {
       const params = new URLSearchParams();
-      if (regNum) params.set('regNum', regNum);
-      if (slipId) params.set('slipId', slipId);
+      if (rNum) params.set('regNum', rNum);
+      if (sId) params.set('slipId', sId);
 
       const response = await fetch(`/api/registrations/verify?${params.toString()}`);
       const data = await response.json();
@@ -128,12 +143,25 @@ function VerifyCashContent() {
         setRegistration(data.data);
       } else {
         setError(data.error || 'Registration not found');
+        setRegistration(null);
       }
-    } catch (error: any) {
-      console.error('Fetch error:', error);
+    } catch {
       setError('Failed to load registration details');
+      setRegistration(null);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleManualLookup = (e: React.FormEvent) => {
+    e.preventDefault();
+    const q = lookupQuery.trim();
+    if (!q) return;
+
+    if (q.toUpperCase().startsWith('MO26-') || q.includes('-')) {
+      fetchRegistration(null, q);
+    } else {
+      fetchRegistration(q, null);
     }
   };
 
@@ -152,352 +180,275 @@ function VerifyCashContent() {
       const response = await fetch(`/api/registrations/${registration.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           status: 'paid',
-          discount: discountValue
+          discount: discountValue,
         }),
       });
 
       const data = await response.json();
       if (data.success) {
-        // Reload registration data
-        await fetchRegistration();
-        alert('Payment approved successfully!');
+        await fetchRegistration(registration.registration_number?.toString(), registration.slip_id);
+        alert('Payment verified & marked PAID successfully!');
       } else {
         alert('Failed to approve: ' + data.error);
       }
-    } catch (error) {
-      console.error('Approve error:', error);
+    } catch {
       alert('Failed to approve payment');
     } finally {
       setApproving(false);
     }
   };
 
-  if (checkingAuth || loading) {
+  if (checkingAuth) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
-        <div className="text-center">
-          <Loader2 className="h-12 w-12 animate-spin text-blue-600 mx-auto mb-4" />
-          <p className="text-gray-600">
-            {checkingAuth ? 'Verifying access...' : 'Loading registration details...'}
+      <div className="min-h-screen bg-[#101114] flex items-center justify-center">
+        <div className="w-10 h-10 border-2 border-[#D5F05B] border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  // Admin login requirement modal
+  if (showLogin && !authenticated) {
+    return (
+      <div className="min-h-screen bg-[#101114] text-[#F4F1EA] flex items-center justify-center p-4">
+        <div className="max-w-md w-full p-8 rounded-3xl bg-[#161820] border border-white/[0.08] shadow-2xl">
+          <div className="w-14 h-14 rounded-2xl bg-[#F15A29]/15 border border-[#F15A29]/30 flex items-center justify-center mx-auto mb-4">
+            <Lock className="w-7 h-7 text-[#F15A29]" />
+          </div>
+          <h2 className="text-2xl font-black text-center font-['Space_Grotesk'] uppercase mb-1">
+            VERIFICATION DESK LOGIN
+          </h2>
+          <p className="text-xs font-mono text-center text-[#A4A5AA] mb-6">
+            Organizer credentials required to verify cash slips.
           </p>
+
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div>
+              <Label className="text-xs font-mono text-[#A4A5AA] uppercase">Username</Label>
+              <Input
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="admin"
+                className="mt-1 bg-[#101114] border-white/[0.1] text-xs font-mono text-[#F4F1EA] rounded-xl"
+                autoFocus
+              />
+            </div>
+            <div>
+              <Label className="text-xs font-mono text-[#A4A5AA] uppercase">Password</Label>
+              <Input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                className="mt-1 bg-[#101114] border-white/[0.1] text-xs font-mono text-[#F4F1EA] rounded-xl"
+              />
+            </div>
+
+            {loginError && (
+              <p className="text-xs font-mono text-red-500">{loginError}</p>
+            )}
+
+            <Button
+              type="submit"
+              disabled={loggingIn}
+              className="w-full py-3 rounded-xl text-xs font-mono font-bold tracking-wider text-[#101114] bg-[#D5F05B] hover:bg-[#c2de4a] uppercase"
+            >
+              {loggingIn ? 'VERIFYING...' : 'LOGIN TO CASH DESK'}
+            </Button>
+          </form>
+
+          <div className="mt-6 text-center pt-4 border-t border-white/[0.06]">
+            <Link href="/" className="text-xs font-mono text-[#A4A5AA] hover:text-white">
+              ← Return to Main Portal
+            </Link>
+          </div>
         </div>
       </div>
     );
   }
 
-  // Show login form if not authenticated
-  if (showLogin && !authenticated) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 py-12">
-        <Card className="max-w-md w-full">
-          <CardHeader>
-            <div className="flex justify-center mb-4">
-              <Lock className="h-12 w-12 text-blue-600" />
-            </div>
-            <CardTitle className="text-center">Admin Authentication Required</CardTitle>
-            <CardDescription className="text-center">
-              Please login to verify and approve cash payments
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleLogin} className="space-y-4">
-              <div>
-                <Label htmlFor="username">Username</Label>
-                <Input
-                  id="username"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  required
-                  autoComplete="username"
-                  autoFocus
-                />
-              </div>
-              <div>
-                <Label htmlFor="password">Password</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  autoComplete="current-password"
-                />
-              </div>
-              {loginError && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-                  <p className="text-sm text-red-800">{loginError}</p>
-                </div>
-              )}
-              <Button type="submit" className="w-full" disabled={loggingIn}>
-                {loggingIn ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Logging in...
-                  </>
-                ) : (
-                  'Login'
-                )}
-              </Button>
-            </form>
-            <div className="mt-4 text-center">
-              <Button
-                variant="ghost"
-                onClick={() => router.push('/admin/login')}
-                className="text-sm"
-              >
-                Go to Admin Login
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  if (error || !registration) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-red-50 to-pink-100 py-12">
-        <Card className="max-w-md w-full">
-          <CardHeader>
-            <div className="flex justify-center mb-4">
-              <XCircle className="h-16 w-16 text-red-600" />
-            </div>
-            <CardTitle className="text-center text-red-600">Verification Failed</CardTitle>
-          </CardHeader>
-          <CardContent className="text-center">
-            <p className="text-gray-700 mb-4">{error || 'Registration not found'}</p>
-            <Button onClick={() => router.push('/')} variant="outline">
-              Go to Home
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  const selectedGames = Array.isArray(registration.selected_games)
-    ? registration.selected_games
-    : typeof registration.selected_games === 'string'
-    ? JSON.parse(registration.selected_games)
+  // Parse games array
+  const gamesList: string[] = registration?.selected_games
+    ? Array.isArray(registration.selected_games)
+      ? registration.selected_games
+      : JSON.parse(registration.selected_games || '[]')
     : [];
 
-  const isPaid = registration.status === 'paid';
-  const isPendingCash = registration.status === 'pending_cash';
+  const rawTotal = Number(registration?.total_amount) || 0;
+  const currentDiscount = parseFloat(discount) || 0;
+  const finalPayable = Math.max(0, rawTotal - currentDiscount);
+  const isPaid = registration?.status === 'paid';
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-12">
-      <div className="container mx-auto px-4 max-w-3xl">
-        <Card className="shadow-xl border-2">
-          <CardHeader className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-t-lg">
-            <CardTitle className="text-2xl flex items-center gap-2">
-              <DollarSign className="h-6 w-6" />
-              Cash Payment Verification
-            </CardTitle>
-            <CardDescription className="text-blue-100">
-              Verify and approve cash payment
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="p-6 space-y-6">
-            {/* Status Banner */}
-            {isPaid && (
-              <div className="bg-green-50 border-2 border-green-300 rounded-lg p-4">
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="h-6 w-6 text-green-600" />
-                  <p className="font-semibold text-green-800">Payment Already Approved</p>
-                </div>
+    <div className="min-h-screen bg-[#101114] text-[#F4F1EA] py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-4xl mx-auto space-y-8">
+        {/* Header Bar */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-white/[0.08]">
+          <div className="flex items-center gap-3">
+            <Link
+              href="/"
+              className="p-2 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-[#A4A5AA] hover:text-white transition-colors"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </Link>
+            <div>
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="w-5 h-5 text-[#D5F05B]" />
+                <h1 className="text-xl sm:text-2xl font-black font-['Space_Grotesk'] uppercase tracking-tight">
+                  CASH DESK VERIFICATION KIOSK
+                </h1>
               </div>
-            )}
-
-            {/* Registration Details */}
-            <div className="grid md:grid-cols-2 gap-6">
-              <div className="bg-blue-50 p-4 rounded-lg border-2 border-blue-200">
-                <h3 className="font-semibold mb-3 flex items-center gap-2">
-                  <User className="h-5 w-5 text-blue-600" />
-                  Registration Information
-                </h3>
-                <div className="space-y-2 text-sm">
-                  <div>
-                    <span className="text-gray-600">Registration #:</span>
-                    <span className="font-bold text-blue-600 ml-2">
-                      #{registration.registration_number}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-gray-600">Slip ID:</span>
-                    <span className="font-mono font-semibold ml-2">{registration.slip_id}</span>
-                  </div>
-                  <div>
-                    <span className="text-gray-600">Name:</span>
-                    <span className="font-semibold ml-2">{registration.name}</span>
-                  </div>
-                  <div>
-                    <span className="text-gray-600">Roll Number:</span>
-                    <span className="font-semibold ml-2">{registration.roll_number}</span>
-                  </div>
-                  <div>
-                    <span className="text-gray-600">Gender:</span>
-                    <span className="font-semibold ml-2 capitalize">{registration.gender}</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-green-50 p-4 rounded-lg border-2 border-green-200">
-                <h3 className="font-semibold mb-3 flex items-center gap-2">
-                  <Phone className="h-5 w-5 text-green-600" />
-                  Contact Information
-                </h3>
-                <div className="space-y-2 text-sm">
-                  <div>
-                    <span className="text-gray-600">Contact:</span>
-                    <span className="font-semibold ml-2">{registration.contact_number}</span>
-                  </div>
-                  {registration.alternative_contact_number && (
-                    <div>
-                      <span className="text-gray-600">Alternative:</span>
-                      <span className="font-semibold ml-2">
-                        {registration.alternative_contact_number}
-                      </span>
-                    </div>
-                  )}
-                  <div>
-                    <span className="text-gray-600">Email:</span>
-                    <span className="font-semibold ml-2 flex items-center gap-1">
-                      <Mail className="h-4 w-4" />
-                      {registration.email}
-                    </span>
-                  </div>
-                </div>
-              </div>
+              <p className="text-xs font-mono text-[#A4A5AA] mt-0.5">
+                MINI OLYMPICS 2026 • REGISTRATION DESK TERMINAL
+              </p>
             </div>
+          </div>
 
-            {/* Games and Amount */}
-            <div className="bg-gradient-to-r from-purple-50 to-pink-50 p-4 rounded-lg border-2 border-purple-200">
-              <h3 className="font-semibold mb-3 flex items-center gap-2">
-                <Trophy className="h-5 w-5 text-purple-600" />
-                Selected Games & Amount
-              </h3>
-              <div className="mb-3">
-                <p className="text-sm text-gray-600 mb-2">
-                  {selectedGames.length} game(s) selected:
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {selectedGames.map((game: string) => (
-                    <span
-                      key={game}
-                      className="px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-sm font-medium"
-                    >
-                      {game}
-                    </span>
-                  ))}
+          <Link
+            href="/admin/registrations"
+            className="text-xs font-mono text-[#D5F05B] hover:underline"
+          >
+            Go to Admin Registrations →
+          </Link>
+        </div>
+
+        {/* Search Bar for Quick Lookup */}
+        <form
+          onSubmit={handleManualLookup}
+          className="p-4 rounded-2xl bg-[#161820] border border-white/[0.08] flex gap-3 shadow-xl"
+        >
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 text-[#A4A5AA] absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <Input
+              value={lookupQuery}
+              onChange={(e) => setLookupQuery(e.target.value)}
+              placeholder="Scan QR or enter Slip ID (e.g. MO26-CASH-4912) or Ticket #"
+              className="pl-10 bg-[#101114] border-white/[0.1] text-xs font-mono text-[#F4F1EA] rounded-xl focus:border-[#D5F05B]"
+            />
+          </div>
+          <Button
+            type="submit"
+            className="px-6 rounded-xl text-xs font-mono font-bold tracking-wider text-[#101114] bg-[#D5F05B] hover:bg-[#c2de4a] uppercase"
+          >
+            LOOKUP
+          </Button>
+        </form>
+
+        {loading && (
+          <div className="text-center py-12">
+            <Loader2 className="w-8 h-8 animate-spin text-[#D5F05B] mx-auto mb-2" />
+            <p className="text-xs font-mono text-[#A4A5AA]">FETCHING REGISTRATION RECORD...</p>
+          </div>
+        )}
+
+        {error && (
+          <div className="p-4 rounded-2xl bg-red-500/10 border border-red-500/30 text-red-400 font-mono text-xs flex items-center gap-2">
+            <AlertCircle className="w-4 h-4" />
+            <span>{error}</span>
+          </div>
+        )}
+
+        {/* Registration Card */}
+        {registration && (
+          <div className="p-6 sm:p-8 rounded-3xl bg-[#161820] border border-white/[0.08] space-y-6 shadow-2xl">
+            {/* Top Status Header */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-white/[0.08]">
+              <div>
+                <span className="text-xs font-mono text-[#A4A5AA]">TICKET #{registration.registration_number}</span>
+                <h2 className="text-2xl sm:text-3xl font-black text-[#F4F1EA] font-['Space_Grotesk'] uppercase">
+                  {registration.name}
+                </h2>
+                <div className="flex items-center gap-2 text-xs font-mono text-[#D5F05B] mt-1">
+                  <span>{registration.roll_number}</span>
+                  <span>•</span>
+                  <span className="uppercase">{registration.gender}</span>
+                  <span>•</span>
+                  <span>{registration.contact_number}</span>
                 </div>
               </div>
-              <div className="border-t pt-3 mt-3 space-y-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-lg font-semibold">Total Amount:</span>
-                  <span className="text-2xl font-bold text-green-600">
-                    Rs. {registration.total_amount.toLocaleString()}
+
+              <div>
+                {isPaid ? (
+                  <span className="px-4 py-2 rounded-xl text-xs font-mono font-black tracking-wider uppercase bg-[#D5F05B] text-[#101114] inline-flex items-center gap-1.5">
+                    <Check className="w-4 h-4" />
+                    STATUS: PAID / VERIFIED
                   </span>
-                </div>
-                {(registration.discount && Number(registration.discount) > 0) && (
-                  <>
-                    <div className="flex justify-between items-center text-amber-700">
-                      <span className="text-sm font-medium">
-                        {registration.coupon_code ? `Coupon applied (${registration.coupon_code}):` : 'Discount:'}
-                      </span>
-                      <span className="font-semibold">- Rs. {Number(registration.discount).toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between items-center border-t pt-2">
-                      <span className="text-lg font-semibold">Final Amount:</span>
-                      <span className="text-2xl font-bold text-green-700">
-                        Rs. {(registration.total_amount - (Number(registration.discount) || 0)).toLocaleString()}
-                      </span>
-                    </div>
-                  </>
+                ) : (
+                  <span className="px-4 py-2 rounded-xl text-xs font-mono font-black tracking-wider uppercase bg-amber-500/20 text-amber-400 border border-amber-500/40">
+                    STATUS: PENDING PAYMENT
+                  </span>
                 )}
               </div>
             </div>
 
-            {/* Payment Status */}
-            <div className="bg-yellow-50 p-4 rounded-lg border-2 border-yellow-200">
-              <div className="flex justify-between items-center">
-                <div>
-                  <p className="text-sm text-gray-600">Payment Status</p>
-                  <p className="text-lg font-semibold capitalize">
-                    {registration.status.replace('_', ' ')}
-                  </p>
-                </div>
-                <div className="text-sm text-gray-600">
-                  <p>Registered: {new Date(registration.created_at).toLocaleString()}</p>
-                </div>
+            {/* Slip and Details */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 font-mono text-xs">
+              <div className="p-4 rounded-2xl bg-[#101114] border border-white/[0.06]">
+                <span className="text-[#A4A5AA] block mb-1">SLIP ID</span>
+                <span className="font-bold text-sm text-[#F15A29]">{registration.slip_id}</span>
+              </div>
+              <div className="p-4 rounded-2xl bg-[#101114] border border-white/[0.06]">
+                <span className="text-[#A4A5AA] block mb-1">METHOD</span>
+                <span className="font-bold text-sm uppercase text-white">{registration.payment_method}</span>
+              </div>
+              <div className="p-4 rounded-2xl bg-[#101114] border border-white/[0.06]">
+                <span className="text-[#A4A5AA] block mb-1">REGISTERED AT</span>
+                <span className="text-white text-xs">{new Date(registration.created_at).toLocaleDateString()}</span>
               </div>
             </div>
 
-            {/* Discount Field and Approve Button */}
-            {isPendingCash && (
-              <div className="space-y-4">
-                <div className="bg-blue-50 p-4 rounded-lg border-2 border-blue-200">
-                  <Label htmlFor="discount" className="text-sm sm:text-base font-semibold mb-2 block">
-                    Discount Amount (Rs.)
-                  </Label>
-                  <Input
-                    id="discount"
-                    type="number"
-                    min="0"
-                    step="1"
-                    value={discount}
-                    onChange={(e) => setDiscount(e.target.value)}
-                    autoComplete="off"
-                    placeholder="0"
-                    className="text-base sm:text-lg font-semibold"
-                  />
-                  <p className="text-xs sm:text-sm text-gray-600 mt-2">
-                    Enter discount amount (e.g., 200). Final amount will be: Rs. {(registration.total_amount - (parseFloat(discount) || 0)).toLocaleString()}
-                  </p>
-                </div>
-                <div className="flex gap-4">
-                  <Button
-                    onClick={handleApprove}
-                    disabled={approving}
-                    className="flex-1 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-lg py-6"
-                  >
-                    {approving ? (
-                      <>
-                        <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-                        Approving...
-                      </>
-                    ) : (
-                      <>
-                        <CheckCircle2 className="h-5 w-5 mr-2" />
-                        Approve Cash Payment
-                      </>
-                    )}
-                  </Button>
-                  <Button
-                    onClick={() => router.push('/admin/dashboard')}
-                    variant="outline"
-                    className="px-6"
-                  >
-                    Go to Dashboard
-                  </Button>
-                </div>
+            {/* Disciplines */}
+            <div>
+              <span className="text-xs font-mono text-[#A4A5AA] block mb-2">SELECTED DISCIPLINES ({gamesList.length})</span>
+              <div className="flex flex-wrap gap-2">
+                {gamesList.map((g) => (
+                  <span key={g} className="px-3 py-1.5 rounded-xl bg-[#101114] border border-white/[0.08] text-xs font-bold text-[#F4F1EA]">
+                    {g}
+                  </span>
+                ))}
               </div>
-            )}
+            </div>
 
-            {isPaid && (
-              <div className="text-center">
-                <Button
-                  onClick={() => router.push('/admin/dashboard')}
-                  variant="outline"
-                  className="w-full"
-                >
-                  Go to Dashboard
-                </Button>
+            {/* Financials & Approval Box */}
+            <div className="p-6 rounded-2xl bg-[#101114] border border-white/[0.08] space-y-4 font-mono text-xs">
+              <div className="flex justify-between items-center">
+                <span className="text-[#A4A5AA]">System Calculated Total:</span>
+                <span className="text-sm font-bold text-white">Rs. {rawTotal.toLocaleString()}</span>
               </div>
-            )}
-          </CardContent>
-        </Card>
+
+              {/* Adjust Discount Input */}
+              <div className="flex items-center justify-between gap-4 py-2 border-t border-b border-white/[0.06]">
+                <span className="text-[#A4A5AA]">Manual Desk Discount (Rs):</span>
+                <Input
+                  type="number"
+                  value={discount}
+                  onChange={(e) => setDiscount(e.target.value)}
+                  disabled={isPaid}
+                  className="w-28 bg-[#161820] border-white/[0.1] text-xs font-mono text-right text-[#D5F05B] rounded-lg"
+                />
+              </div>
+
+              <div className="flex justify-between items-center text-sm font-bold">
+                <span className="text-white uppercase">Final Amount Due:</span>
+                <span className="text-2xl font-black text-[#D5F05B]">
+                  Rs. {finalPayable.toLocaleString()}
+                </span>
+              </div>
+
+              {!isPaid && (
+                <Button
+                  type="button"
+                  onClick={handleApprove}
+                  disabled={approving}
+                  className="w-full mt-4 py-4 rounded-xl text-xs font-mono font-black tracking-wider text-[#101114] bg-[#D5F05B] hover:bg-[#c2de4a] uppercase transition-all shadow-xl shadow-[#D5F05B]/20"
+                >
+                  {approving ? 'VERIFYING IN DATABASE...' : 'CONFIRM CASH RECEIVED & MARK PAID ✦'}
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -505,13 +456,13 @@ function VerifyCashContent() {
 
 export default function VerifyCashPage() {
   return (
-    <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
-        <div className="text-center">
-          <p className="text-gray-600">Loading...</p>
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-[#101114] flex items-center justify-center">
+          <div className="w-10 h-10 border-2 border-[#D5F05B] border-t-transparent rounded-full animate-spin" />
         </div>
-      </div>
-    }>
+      }
+    >
       <VerifyCashContent />
     </Suspense>
   );

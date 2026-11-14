@@ -80,13 +80,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-blue-900 to-indigo-900">
+      <div className="min-h-screen flex items-center justify-center bg-[#0A0B0E]">
         <div className="text-center">
           <div className="relative">
-            <div className="w-20 h-20 border-4 border-blue-400/30 rounded-full animate-pulse"></div>
-            <div className="w-20 h-20 border-4 border-t-blue-400 rounded-full animate-spin absolute inset-0"></div>
+            <div className="w-16 h-16 border-2 border-white/10 rounded-full animate-pulse"></div>
+            <div className="w-16 h-16 border-2 border-t-[#D5F05B] rounded-full animate-spin absolute inset-0"></div>
           </div>
-          <p className="text-blue-200 mt-6 text-lg font-medium">Loading...</p>
+          <p className="text-[#A4A5AA] font-mono mt-6 text-xs uppercase tracking-widest">AUTHENTICATING TERMINAL...</p>
         </div>
       </div>
     );
@@ -97,9 +97,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }
 
   return (
-    <div className="flex min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/50">
+    <div className="flex min-h-screen bg-[#0A0B0E] text-[#F4F1EA]">
       <AdminSidebar userRole={userRole} username={username} onLogout={handleLogout} />
-      <main className="flex-1 lg:ml-0 min-h-screen overflow-x-hidden">
+      <main className="flex-1 lg:ml-0 min-h-screen overflow-x-hidden bg-[#0A0B0E]">
         {children}
       </main>
     </div>
