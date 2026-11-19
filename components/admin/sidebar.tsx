@@ -7,12 +7,14 @@ import {
   Package,
   Wallet,
   Users,
+  Shield,
   LogOut,
   ChevronLeft,
   ChevronRight,
   Menu,
   X,
   Settings,
+  Mail,
   Home,
   KeyRound,
   ClipboardList,
@@ -203,6 +205,11 @@ export default function AdminSidebar({ userRole, username, permissions, onLogout
       icon: <OlympicRingsIcon className="h-3.5 w-5" />,
     },
     {
+      label: 'Sport Groups',
+      href: '/admin/super',
+      icon: <Shield className="h-4 w-4" />,
+    },
+    {
       label: 'Inventory',
       href: '/admin/inventory',
       icon: <Package className="h-4 w-4" />,
@@ -211,6 +218,11 @@ export default function AdminSidebar({ userRole, username, permissions, onLogout
       label: 'Finance',
       href: '/admin/finance',
       icon: <Wallet className="h-4 w-4" />,
+    },
+    {
+      label: 'Email Composer',
+      href: '/admin/email',
+      icon: <Mail className="h-4 w-4" />,
     },
     {
       label: 'Esports Arena',

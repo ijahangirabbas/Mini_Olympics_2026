@@ -44,10 +44,12 @@ export const ADMIN_PAGES: AdminPageMeta[] = [
   { key: '/admin/registrations', label: 'Registrations', description: 'View, verify, approve & export registrations' },
   { key: '/admin/inventory', label: 'Inventory', description: 'Equipment inventory & stock tracking' },
   { key: '/admin/finance', label: 'Finance', description: 'Treasury income, expense & ledger sync' },
-  { key: '/admin/hoc', label: 'HOC & Match Records', description: 'Tournament brackets, sport groups & all coordinator match records' },
+  { key: '/admin/super', label: 'Sport Groups', description: 'WhatsApp groups & coordinator contact links' },
+  { key: '/admin/hoc', label: 'HOC & Match Records', description: 'Tournament brackets & all coordinator match records' },
   { key: '/admin/coordinator', label: 'Coordinator Portal', description: 'Assigned game players, match scheduling & results' },
+  { key: '/admin/email', label: 'Email Composer', description: 'Send bulk or individual emails via Gmail SMTP' },
   { key: '/admin/esports', label: 'Esports Controls', description: 'Esports registration toggle & announcements' },
-  { key: '/admin/settings', label: 'Settings & Games', description: 'Manage games, prices, coupons & registration lock' },
+  { key: '/admin/settings', label: 'Settings & Games', description: 'Manage games, prices, coupons, Gmail SMTP & registration lock' },
   { key: '/admin/permissions', label: 'Permissions & Users', description: 'Create sub-admins/coordinators, assign permissions & audit logs' },
 ];
 
@@ -60,7 +62,7 @@ export const rolePermissions: Record<AdminRole, string[]> = {
   coordinator: ['/admin/coordinator'],
   registration_admin: ['/admin/registrations'],
   inventory_admin: ['/admin/inventory'],
-  hoc_admin: ['/admin/hoc', '/admin/coordinator'],
+  hoc_admin: ['/admin/super', '/admin/hoc', '/admin/coordinator'],
   finance_admin: ['/admin/finance'],
 };
 

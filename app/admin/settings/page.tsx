@@ -941,6 +941,245 @@ export default function SettingsPage() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Automated Email Templates */}
+        <Card className="bg-[#131B38] text-[#F8FAFC] border border-white/[0.08] shadow-xl flex flex-col min-h-[420px]">
+          <CardHeader className="border-b border-white/[0.08]">
+            <CardTitle className="flex items-center gap-2 text-[#F8FAFC]">
+              <Mail className="h-5 w-5 text-[#12E2C4]" />
+              Automated Email Templates
+            </CardTitle>
+            <CardDescription className="text-[#94A3B8]">
+              Sent automatically on registration, approval &amp; rejection. Placeholders: {'{{name}}'}, {'{{regNum}}'}, {'{{slipId}}'}, {'{{teamName}}'}, {'{{gamesList}}'}, {'{{paymentAction}}'}.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-6 flex flex-col flex-1 min-h-0">
+            <div className="space-y-3 flex-1 flex flex-col min-h-0">
+              <div className="space-y-1.5">
+                <Label className="text-xs text-[#94A3B8]">Template</Label>
+                <Select
+                  value={selectedEmailTemplate}
+                  onValueChange={(v) => setSelectedEmailTemplate(v as typeof selectedEmailTemplate)}
+                >
+                  <SelectTrigger className="w-full bg-[#0B1124] border-white/15 text-[#F8FAFC]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="registration_online">Registration submitted (online)</SelectItem>
+                    <SelectItem value="registration_cash">Registration submitted (cash)</SelectItem>
+                    <SelectItem value="payment_received">Payment approved (confirmed)</SelectItem>
+                    <SelectItem value="payment_rejected">Payment rejected</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2 flex-1 min-h-0 flex flex-col">
+                <Label className="text-xs text-[#94A3B8]">Subject</Label>
+                <Input
+                  value={
+                    selectedEmailTemplate === 'registration_online'
+                      ? emailTemplates.email_registration_submitted_online_subject
+                      : selectedEmailTemplate === 'registration_cash'
+                        ? emailTemplates.email_registration_submitted_cash_subject
+                        : selectedEmailTemplate === 'payment_received'
+                          ? emailTemplates.email_payment_received_subject
+                          : emailTemplates.email_payment_rejected_subject
+                  }
+                  disabled={!canEdit}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (selectedEmailTemplate === 'registration_online')
+                      setEmailTemplates((t) => ({ ...t, email_registration_submitted_online_subject: v }));
+                    else if (selectedEmailTemplate === 'registration_cash')
+                      setEmailTemplates((t) => ({ ...t, email_registration_submitted_cash_subject: v }));
+                    else if (selectedEmailTemplate === 'payment_received')
+                      setEmailTemplates((t) => ({ ...t, email_payment_received_subject: v }));
+                    else setEmailTemplates((t) => ({ ...t, email_payment_rejected_subject: v }));
+                  }}
+                  className="bg-[#0B1124] border-white/15 text-[#F8FAFC]"
+                />
+                <Label className="text-xs text-[#94A3B8]">Body (HTML)</Label>
+                <textarea
+                  value={
+                    selectedEmailTemplate === 'registration_online'
+                      ? emailTemplates.email_registration_submitted_online_body
+                      : selectedEmailTemplate === 'registration_cash'
+                        ? emailTemplates.email_registration_submitted_cash_body
+                        : selectedEmailTemplate === 'payment_received'
+                          ? emailTemplates.email_payment_received_body
+                          : emailTemplates.email_payment_rejected_body
+                  }
+                  disabled={!canEdit}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (selectedEmailTemplate === 'registration_online')
+                      setEmailTemplates((t) => ({ ...t, email_registration_submitted_online_body: v }));
+                    else if (selectedEmailTemplate === 'registration_cash')
+                      setEmailTemplates((t) => ({ ...t, email_registration_submitted_cash_body: v }));
+                    else if (selectedEmailTemplate === 'payment_received')
+                      setEmailTemplates((t) => ({ ...t, email_payment_received_body: v }));
+                    else setEmailTemplates((t) => ({ ...t, email_payment_rejected_body: v }));
+                  }}
+                  rows={7}
+                  className="w-full px-3 py-2 border border-white/15 bg-[#0B1124] text-[#F8FAFC] rounded-lg text-xs font-mono resize-y flex-1 min-h-[160px]"
+                />
+              </div>
+            </div>
+            {canEdit && (
+              <Button
+                onClick={handleSaveEmailTemplates}
+                disabled={savingTemplates}
+                className="mt-4 bg-[#12E2C4] hover:bg-[#0FC9AE] text-[#080D1C] font-bold"
+              >
+                {savingTemplates ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : templatesSaveSuccess ? (
+                  <CheckCircle className="h-4 w-4 mr-2" />
+                ) : (
+                  <Save className="h-4 w-4 mr-2" />
+                )}
+                {templatesSaveSuccess ? 'Saved!' : 'Save Templates'}
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Gmail SMTP Email Configuration */}
+        <Card className="bg-[#131B38] text-[#F8FAFC] border border-white/[0.08] shadow-xl lg:col-span-2">
+          <CardHeader className="border-b border-white/[0.08]">
+            <CardTitle className="flex items-center gap-2 text-[#F8FAFC]">
+              <Server className="h-5 w-5 text-[#12E2C4]" />
+              Gmail SMTP Configuration
+            </CardTitle>
+            <CardDescription className="text-[#94A3B8]">
+              Connect your Gmail account with a 16-character Google App Password to automatically send registration &amp; approval emails.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-6 space-y-5">
+            <div className="p-3.5 rounded-xl bg-[#0B1124] border border-[#12E2C4]/25 text-xs font-mono text-[#94A3B8] leading-relaxed">
+              <strong className="text-[#12E2C4]">Quick Gmail Setup:</strong> Go to{' '}
+              <span className="text-[#F8FAFC]">Google Account → Security → 2-Step Verification → App Passwords</span>, create an app password for &quot;Mini Olympics&quot;, paste the 16-character password below, click <span className="text-[#F8FAFC]">Save SMTP</span>, and verify with <span className="text-[#F8FAFC]">Send Test Email</span>.
+            </div>
+            <div className="grid gap-6 md:grid-cols-2">
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="smtpEmail" className="text-xs text-[#94A3B8]">
+                    Gmail Address *
+                  </Label>
+                  <Input
+                    id="smtpEmail"
+                    type="email"
+                    disabled={!canEdit}
+                    value={settings.smtp_email}
+                    onChange={(e) => setSettings({ ...settings, smtp_email: e.target.value })}
+                    placeholder="your.society@gmail.com"
+                    className="bg-[#0B1124] border-white/15 text-[#F8FAFC]"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="smtpPassword" className="text-xs text-[#94A3B8]">
+                    Google App Password (16 characters) *
+                  </Label>
+                  <div className="relative">
+                    <Input
+                      id="smtpPassword"
+                      type={showSmtpPassword ? 'text' : 'password'}
+                      disabled={!canEdit}
+                      value={settings.smtp_password}
+                      onChange={(e) => setSettings({ ...settings, smtp_password: e.target.value })}
+                      autoComplete="off"
+                      placeholder="xxxx xxxx xxxx xxxx"
+                      className="pr-10 bg-[#0B1124] border-white/15 text-[#F8FAFC]"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowSmtpPassword(!showSmtpPassword)}
+                      aria-label="Toggle password visibility"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-[#94A3B8] hover:text-white"
+                    >
+                      {showSmtpPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="smtpFromName" className="text-xs text-[#94A3B8]">
+                    Sender Display Name
+                  </Label>
+                  <Input
+                    id="smtpFromName"
+                    disabled={!canEdit}
+                    value={settings.smtp_from_name}
+                    onChange={(e) => setSettings({ ...settings, smtp_from_name: e.target.value })}
+                    placeholder="FCIT Sports Society"
+                    className="bg-[#0B1124] border-white/15 text-[#F8FAFC]"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="smtpHost" className="text-xs text-[#94A3B8]">
+                      SMTP Server
+                    </Label>
+                    <Input
+                      id="smtpHost"
+                      disabled={!canEdit}
+                      value={settings.smtp_host}
+                      onChange={(e) => setSettings({ ...settings, smtp_host: e.target.value })}
+                      placeholder="smtp.gmail.com"
+                      className="bg-[#0B1124] border-white/15 text-[#F8FAFC]"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="smtpPort" className="text-xs text-[#94A3B8]">
+                      Port
+                    </Label>
+                    <Input
+                      id="smtpPort"
+                      disabled={!canEdit}
+                      value={settings.smtp_port}
+                      onChange={(e) => setSettings({ ...settings, smtp_port: e.target.value })}
+                      placeholder="587"
+                      className="bg-[#0B1124] border-white/15 text-[#F8FAFC]"
+                    />
+                  </div>
+                </div>
+
+                {canEdit && (
+                  <div className="flex flex-wrap gap-3 pt-4">
+                    <Button
+                      onClick={handleSaveSmtp}
+                      disabled={savingSmtp}
+                      className="bg-[#12E2C4] hover:bg-[#0FC9AE] text-[#080D1C] font-bold"
+                    >
+                      {savingSmtp ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : smtpSaveSuccess ? (
+                        <CheckCircle className="h-4 w-4 mr-2" />
+                      ) : (
+                        <Save className="h-4 w-4 mr-2" />
+                      )}
+                      {smtpSaveSuccess ? 'Saved!' : 'Save SMTP'}
+                    </Button>
+                    <Button
+                      onClick={handleTestEmail}
+                      disabled={testingEmail || !settings.smtp_email}
+                      variant="outline"
+                      className="border-white/15 bg-white/5 text-[#F8FAFC] hover:bg-white/10"
+                    >
+                      {testingEmail ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <Send className="h-4 w-4 mr-2" />
+                      )}
+                      Send Test Email
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Game Add/Edit Dialog */}

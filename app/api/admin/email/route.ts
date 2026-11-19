@@ -145,17 +145,25 @@ export async function GET(request: NextRequest) {
     }
 
     if (game && game !== 'all') {
-      params.push(`%${game}%`);
+      params.push(`%"${game}"%`);
       conditions.push(`selected_games::text ILIKE $${params.length}`);
     }
 
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
     const recipients = await sql(
-      `SELECT DISTINCT email, name, gender, status FROM registrations ${whereClause} ORDER BY name ASC`,
+      `SELECT DISTINCT email, name, gender, status, registration_number, team_name FROM registrations ${whereClause} ORDER BY name ASC`,
       params
     );
 
-    return NextResponse.json({ success: true, data: recipients });
+    const smtp = await getSmtpSettings();
+    const smtpConfigured = Boolean(smtp.smtp_email && smtp.smtp_password);
+
+    return NextResponse.json({
+      success: true,
+      data: recipients,
+      smtpConfigured,
+      smtpEmail: smtp.smtp_email || null,
+    });
   } catch (error: any) {
     console.error('Get recipients error:', error);
     return NextResponse.json({ error: 'Failed to get recipients', details: error.message }, { status: 500 });

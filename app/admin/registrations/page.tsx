@@ -230,7 +230,17 @@ export default function RegistrationsPage() {
       });
       const data = await response.json();
       if (data.success) {
-        toast.success(`Updated status to ${newStatus.replace('_', ' ')}`);
+        if (newStatus === 'paid' || newStatus === 'rejected') {
+          if (data.emailSent) {
+            toast.success(`Marked ${newStatus.replace('_', ' ')} & confirmation email sent!`);
+          } else if (data.emailWarning) {
+            toast.success(`Marked ${newStatus.replace('_', ' ')} (Email skipped: configure Gmail SMTP in Settings)`);
+          } else {
+            toast.success(`Updated status to ${newStatus.replace('_', ' ')}`);
+          }
+        } else {
+          toast.success(`Updated status to ${newStatus.replace('_', ' ')}`);
+        }
         loadData();
       } else {
         toast.error(data.error || 'Failed to update status');
@@ -706,9 +716,22 @@ export default function RegistrationsPage() {
                         )}
                       </td>
                       <td className="p-4">
-                        <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${reg.payment_method === 'online' ? 'bg-blue-500/15 text-blue-300 border border-blue-500/30' : 'bg-amber-500/15 text-amber-300 border border-amber-500/30'}`}>
-                          {reg.payment_method}
-                        </span>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${reg.payment_method === 'online' ? 'bg-blue-500/15 text-blue-300 border border-blue-500/30' : 'bg-amber-500/15 text-amber-300 border border-amber-500/30'}`}>
+                            {reg.payment_method}
+                          </span>
+                          {reg.has_screenshot && (
+                            <button
+                              type="button"
+                              onClick={() => handleView(reg)}
+                              title="View payment screenshot"
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono bg-[#12E2C4]/15 text-[#12E2C4] border border-[#12E2C4]/30 hover:bg-[#12E2C4]/25 transition-colors"
+                            >
+                              <Eye className="w-3 h-3" />
+                              Proof
+                            </button>
+                          )}
+                        </div>
                       </td>
                       <td className="p-4">
                         <span className={`px-2 py-1 rounded-full text-xs font-semibold ${

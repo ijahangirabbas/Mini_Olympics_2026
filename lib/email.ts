@@ -61,7 +61,7 @@ const EMAIL_FOOTER_ICONS = `
       </p>
 `;
 
-/** Wrap inner HTML in the same card layout as the Email Composer (header + content + footer) */
+/** Wrap inner HTML in the Mini Olympics 2026 branded email card layout */
 function wrapEmailCard(contentHtml: string): string {
   return `
 <!DOCTYPE html>
@@ -70,26 +70,27 @@ function wrapEmailCard(contentHtml: string): string {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
-<body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f8fafc;">
-  <div style="max-width: 600px; margin: 0 auto; padding: 40px 20px;">
-    <div style="background: linear-gradient(135deg, #f59e0b 0%, #ef4444 100%); border-radius: 16px 16px 0 0; padding: 32px; text-align: center; color: white;">
-      <div style="font-size: 48px; margin-bottom: 16px;">🏆</div>
-      <h1 style="margin: 0 0 8px 0; font-size: 24px; font-weight: 700;">Mini Olympics 2026</h1>
-      <p style="margin: 0; opacity: 0.9; font-size: 14px;">FCIT Sports Society</p>
+<body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #080D1C;">
+  <div style="max-width: 600px; margin: 0 auto; padding: 36px 20px;">
+    <div style="height: 5px; border-radius: 16px 16px 0 0; background: linear-gradient(90deg, #0081C8 0%, #FCB131 35%, #12E2C4 70%, #EE334E 100%);"></div>
+    <div style="background: linear-gradient(135deg, #131B38 0%, #0B1124 100%); padding: 28px 32px; text-align: center; color: #F8FAFC; border-bottom: 1px solid #1E293B;">
+      <p style="margin: 0 0 6px 0; font-size: 11px; letter-spacing: 2.5px; text-transform: uppercase; color: #12E2C4; font-weight: 700;">FCIT SPORTS SOCIETY • OFFICIAL PORTAL</p>
+      <h1 style="margin: 0 0 6px 0; font-size: 24px; font-weight: 800; letter-spacing: -0.3px;">Mini Olympics 2026</h1>
+      <p style="margin: 0; color: #94A3B8; font-size: 13px;">PUCIT Old Campus, Lahore</p>
     </div>
-    <div style="background: white; border-radius: 0 0 16px 16px; padding: 32px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);">
-      <div style="color: #334155; line-height: 1.7; font-size: 15px;">
+    <div style="background: #FFFFFF; border-radius: 0 0 16px 16px; padding: 32px; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.25);">
+      <div style="color: #1E293B; line-height: 1.7; font-size: 15px;">
         ${contentHtml}
       </div>
-      <div style="margin-top: 32px; padding-top: 24px; border-top: 1px solid #e2e8f0;">
-        <p style="margin: 0; color: #64748b; font-size: 14px;">
+      <div style="margin-top: 28px; padding-top: 20px; border-top: 1px solid #E2E8F0;">
+        <p style="margin: 0; color: #64748B; font-size: 14px;">
           Best regards,<br>
-          <strong style="color: #334155;">FCIT Sports Society</strong>
+          <strong style="color: #0F172A;">FCIT Sports Society</strong>
         </p>
       </div>
     </div>
-    <div style="text-align: center; margin-top: 24px; color: #94a3b8; font-size: 12px;">
-      <p style="margin: 0 0 12px 0;">© 2026 <a href="https://pucit.edu.pk" style="color: #3b82f6; text-decoration: none; font-weight: 600;">FCIT Sports Society</a>. All rights reserved.</p>
+    <div style="text-align: center; margin-top: 24px; color: #94A3B8; font-size: 12px;">
+      <p style="margin: 0 0 12px 0;">© 2026 <a href="https://pucit.edu.pk" style="color: #12E2C4; text-decoration: none; font-weight: 600;">FCIT Sports Society</a>. All rights reserved.</p>
 ${EMAIL_FOOTER_ICONS}
     </div>
   </div>
@@ -144,12 +145,17 @@ const DEFAULT_REGISTRATION_SUBMITTED_CASH_BODY = `
 `;
 
 const DEFAULT_PAYMENT_RECEIVED_BODY = `
-<h2>Payment Confirmed ✅</h2>
+<h2>Registration &amp; Payment Approved ✅</h2>
 <p>Dear {{name}},</p>
-<p>Your payment for <strong>Mini Olympics 2026</strong> has been received and verified.</p>
+<p>Great news! Your payment for <strong>Mini Olympics 2026</strong> has been verified and your registration is officially <strong>approved</strong>.</p>
 <p><strong>Ticket #:</strong> {{regNum}}</p>
+<p><strong>Team Name:</strong> {{teamName}}</p>
 <p><strong>Reference ID:</strong> {{slipId}}</p>
-<p>You are all set. We look forward to seeing you at the event.</p>
+<p><strong>Approved Game(s):</strong></p>
+<ul>
+{{gamesList}}
+</ul>
+<p>You are all set to compete. Stay tuned to your sport WhatsApp group for match schedules and timings!</p>
 `;
 
 const DEFAULT_PAYMENT_NOT_RECEIVED_BODY = `
@@ -192,7 +198,14 @@ export async function sendRegistrationSubmittedEmail(params: {
   await sendMail({ to: params.to, subject, html });
 }
 
-export async function sendPaymentReceivedEmail(params: { to: string; name: string; regNum: string | number; slipId: string }): Promise<void> {
+export async function sendPaymentReceivedEmail(params: {
+  to: string;
+  name: string;
+  regNum: string | number;
+  slipId: string;
+  teamName?: string;
+  gamesList?: string;
+}): Promise<void> {
   const s = await getEmailTemplate('email_payment_received_subject');
   const subject = (s != null && s.trim() !== '') ? s : EMAIL_SUBJECT_ALL;
   const b = await getEmailTemplate('email_payment_received_body');
@@ -201,6 +214,8 @@ export async function sendPaymentReceivedEmail(params: { to: string; name: strin
     name: params.name,
     regNum: String(params.regNum),
     slipId: params.slipId,
+    teamName: params.teamName || params.name,
+    gamesList: params.gamesList || '<li>Registered Events</li>',
   });
   const html = wrapEmailCard(innerHtml);
   await sendMail({ to: params.to, subject, html });

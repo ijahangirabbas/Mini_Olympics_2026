@@ -54,12 +54,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             impersonatedBy: data.impersonatedBy || null,
           });
 
-          const isRemovedPage = pathname.startsWith('/admin/email');
           const hasAccess =
-            !isRemovedPage &&
-            (effectiveRole === 'super_admin' ||
-              allowedPages.some((page) => pathname.startsWith(page)) ||
-              (pathname.startsWith('/admin/super') && allowedPages.includes('/admin/hoc')));
+            effectiveRole === 'super_admin' ||
+            allowedPages.some((page) => pathname.startsWith(page)) ||
+            (pathname.startsWith('/admin/super') && allowedPages.includes('/admin/hoc'));
 
           if (!hasAccess) {
             const defaultPage = data.defaultPage || allowedPages[0] || '/admin/login';

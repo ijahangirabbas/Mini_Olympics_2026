@@ -34,9 +34,13 @@ import {
   Loader2,
   User,
   UserCircle2,
+  Search,
+  Copy,
+  Lock,
 } from 'lucide-react';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { useToast } from '@/components/ui/toast';
+import { OlympicRingsIcon } from '@/components/olympic-rings-icon';
 
 type GamePrice = {
   name: string;
@@ -68,6 +72,8 @@ export default function SuperAdminPage() {
   const [groups, setGroups] = useState<SportGroup[]>([]);
   const [groupsLoading, setGroupsLoading] = useState(false);
   const [genderTab, setGenderTab] = useState<'boys' | 'girls'>('boys');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [copiedId, setCopiedId] = useState<string | null>(null);
   const [allGames, setAllGames] = useState<GamePrice[]>([]);
   
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -109,7 +115,8 @@ export default function SuperAdminPage() {
           const hasAccess =
             data.role === 'super_admin' ||
             data.role === 'admin' ||
-            allowedPages.includes('/admin/super');
+            allowedPages.includes('/admin/super') ||
+            allowedPages.includes('/admin/hoc');
           if (!hasAccess) {
             router.push(data.defaultPage || '/admin/dashboard');
             return;
@@ -117,7 +124,8 @@ export default function SuperAdminPage() {
           setCanManageGroups(
             data.role === 'super_admin' ||
               data.role === 'admin' ||
-              Boolean(data.permissionDetails?.['/admin/super']?.canEdit)
+              Boolean(data.permissionDetails?.['/admin/super']?.canEdit) ||
+              Boolean(data.permissionDetails?.['/admin/hoc']?.canEdit)
           );
           loadGroups();
         }
@@ -283,21 +291,39 @@ export default function SuperAdminPage() {
     } catch {}
   };
 
-  // Filter groups by gender
+  // Filter groups by gender + search
   const boysGroups = groups.filter((g) => g.gender === 'boys');
   const girlsGroups = groups.filter((g) => g.gender === 'girls');
-  const currentGroups = genderTab === 'boys' ? boysGroups : girlsGroups;
+  const currentGenderGroups = genderTab === 'boys' ? boysGroups : girlsGroups;
+  const currentGroups = searchQuery.trim()
+    ? currentGenderGroups.filter((g) => {
+        const q = searchQuery.trim().toLowerCase();
+        return (
+          g.game_name.toLowerCase().includes(q) ||
+          (g.group_title || '').toLowerCase().includes(q) ||
+          (g.coordinator_name || '').toLowerCase().includes(q)
+        );
+      })
+    : currentGenderGroups;
 
   // Get games that don't have a group for the current gender tab
-  const existingGamesForGender = currentGroups.map((g) => g.game_name);
+  const existingGamesForGender = currentGenderGroups.map((g) => g.game_name);
   const availableGames = allGames.map((g) => g.name).filter((name) => !existingGamesForGender.includes(name));
 
   const isSuperAdmin = userRole === 'super_admin' || canManageGroups;
 
+  const handleCopyLink = (group: SportGroup) => {
+    if (!group.group_url) return;
+    navigator.clipboard.writeText(group.group_url);
+    setCopiedId(group.id);
+    toast.success('WhatsApp group link copied');
+    setTimeout(() => setCopiedId(null), 2000);
+  };
+
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-purple-500" />
+      <div className="min-h-[70vh] flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-[#12E2C4]" />
       </div>
     );
   }
@@ -305,14 +331,22 @@ export default function SuperAdminPage() {
   return (
     <div className="p-6 lg:p-10 pt-20 lg:pt-10 max-w-7xl mx-auto text-[#F8FAFC]">
       {/* Header */}
-      <div className="mb-8 pb-6 border-b border-white/[0.08]">
-        <h1 className="text-3xl font-black text-[#F8FAFC] uppercase font-['Space_Grotesk'] tracking-tight flex items-center gap-3">
-          <div className="p-2 bg-gradient-to-br from-[#12E2C4] to-[#3B82F6] rounded-xl shadow-lg">
-            <Users className="h-6 w-6 text-[#080D1C]" />
+      <div className="mb-8 pb-6 border-b border-white/[0.08] flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+        <div>
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-md bg-[#131B38] border border-white/[0.08] text-xs font-mono text-[#12E2C4] uppercase tracking-wider mb-2">
+            <OlympicRingsIcon className="w-5 h-3" />
+            <span>// WHATSAPP &amp; COORDINATOR CHANNELS</span>
           </div>
-          Sport Groups
-        </h1>
-        <p className="text-xs font-mono text-[#94A3B8] mt-1">Manage WhatsApp groups for Male and Female separately</p>
+          <h1 className="text-3xl font-black text-[#F8FAFC] uppercase font-['Space_Grotesk'] tracking-tight">
+            Sport Groups
+          </h1>
+          <p className="text-xs font-mono text-[#94A3B8] mt-1">Manage WhatsApp groups &amp; coordinator links for Male and Female divisions</p>
+        </div>
+        {!isSuperAdmin && (
+          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-mono uppercase">
+            <Lock className="w-3.5 h-3.5" /> Read-Only
+          </span>
+        )}
       </div>
 
       {/* Info Card */}
@@ -332,35 +366,44 @@ export default function SuperAdminPage() {
         </CardContent>
       </Card>
 
-      {/* Gender Tabs */}
-      <div className="flex gap-2 mb-6">
-        <Button
-          onClick={() => setGenderTab('boys')}
-          variant={genderTab === 'boys' ? 'default' : 'outline'}
-          className={genderTab === 'boys' ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-[#131B38] border-white/[0.1] text-[#94A3B8]'}
-        >
-          <User className="h-4 w-4 mr-2" />
-          Male ({boysGroups.length})
-        </Button>
-        <Button
-          onClick={() => setGenderTab('girls')}
-          variant={genderTab === 'girls' ? 'default' : 'outline'}
-          className={genderTab === 'girls' ? 'bg-pink-500 hover:bg-pink-600 text-white' : 'bg-[#131B38] border-white/[0.1] text-[#94A3B8]'}
-        >
-          <UserCircle2 className="h-4 w-4 mr-2" />
-          Female ({girlsGroups.length})
-        </Button>
-      </div>
-
-      {/* Actions */}
-      <div className="flex justify-between items-center mb-6">
-        <p className="text-xs font-mono text-[#94A3B8]">{currentGroups.length} {genderTab} group(s) configured</p>
-        {isSuperAdmin && (
-          <Button onClick={() => openCreateDialog(genderTab)} className={genderTab === 'boys' ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-pink-500 hover:bg-pink-600 text-white'}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add {genderTab === 'boys' ? 'Male' : 'Female'} Group
+      {/* Gender Tabs & Search */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+        <div className="flex gap-2">
+          <Button
+            onClick={() => setGenderTab('boys')}
+            variant={genderTab === 'boys' ? 'default' : 'outline'}
+            className={genderTab === 'boys' ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-[#131B38] border-white/[0.1] text-[#94A3B8]'}
+          >
+            <User className="h-4 w-4 mr-2" />
+            Male ({boysGroups.length})
           </Button>
-        )}
+          <Button
+            onClick={() => setGenderTab('girls')}
+            variant={genderTab === 'girls' ? 'default' : 'outline'}
+            className={genderTab === 'girls' ? 'bg-pink-500 hover:bg-pink-600 text-white' : 'bg-[#131B38] border-white/[0.1] text-[#94A3B8]'}
+          >
+            <UserCircle2 className="h-4 w-4 mr-2" />
+            Female ({girlsGroups.length})
+          </Button>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative flex-1 sm:w-64">
+            <Search className="w-4 h-4 text-[#94A3B8] absolute left-3 top-1/2 -translate-y-1/2" />
+            <Input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search sport or coordinator..."
+              className="pl-9 h-9 bg-[#131B38] border-white/15 text-xs text-[#F8FAFC]"
+            />
+          </div>
+          {isSuperAdmin && (
+            <Button onClick={() => openCreateDialog(genderTab)} className={genderTab === 'boys' ? 'bg-[#12E2C4] hover:bg-[#0FC9AE] text-[#080D1C] font-bold' : 'bg-pink-500 hover:bg-pink-600 text-white font-bold'}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add {genderTab === 'boys' ? 'Male' : 'Female'} Group
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Groups Grid */}
@@ -405,41 +448,49 @@ export default function SuperAdminPage() {
               <CardContent className="space-y-3">
                 {group.group_url && (
                   <div className="flex items-center gap-2 text-sm">
-                    <Link2 className="h-4 w-4 text-[#12E2C4]" />
-                    <a href={group.group_url} target="_blank" rel="noreferrer" className="text-[#12E2C4] hover:underline truncate">
+                    <Link2 className="h-4 w-4 text-[#12E2C4] shrink-0" />
+                    <a href={group.group_url} target="_blank" rel="noreferrer" className="text-[#12E2C4] hover:underline truncate flex-1">
                       {group.group_url}
                     </a>
+                    <button
+                      type="button"
+                      onClick={() => handleCopyLink(group)}
+                      title="Copy WhatsApp link"
+                      className="p-1.5 rounded-lg bg-[#0B1124] border border-white/10 text-[#94A3B8] hover:text-[#12E2C4]"
+                    >
+                      {copiedId === group.id ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                    </button>
                   </div>
                 )}
                 {group.coordinator_name && (
-                  <div className="flex items-center gap-2 text-sm">
-                    <Users className="h-4 w-4 text-slate-400" />
+                  <div className="flex items-center gap-2 text-sm text-[#E2E8F0]">
+                    <Users className="h-4 w-4 text-[#94A3B8]" />
                     <span>{group.coordinator_name}</span>
                   </div>
                 )}
                 {group.coordinator_phone && (
-                  <div className="flex items-center gap-2 text-sm">
-                    <Phone className="h-4 w-4 text-slate-400" />
+                  <div className="flex items-center gap-2 text-sm font-mono text-[#E2E8F0]">
+                    <Phone className="h-4 w-4 text-[#94A3B8]" />
                     <span>{group.coordinator_phone}</span>
                   </div>
                 )}
                 {group.message_template && (
                   <div className="flex items-start gap-2 text-sm">
-                    <MessageSquare className="h-4 w-4 text-slate-400 mt-0.5" />
-                    <span className="text-slate-500 text-xs line-clamp-2">{group.message_template}</span>
+                    <MessageSquare className="h-4 w-4 text-[#94A3B8] mt-0.5 shrink-0" />
+                    <span className="text-[#94A3B8] text-xs line-clamp-2">{group.message_template}</span>
                   </div>
                 )}
-                
+
                 {isSuperAdmin && (
-                  <div className="flex gap-2 pt-3 border-t">
-                    <Button size="sm" variant="outline" onClick={() => openEditDialog(group)} className="flex-1">
-                      <Pencil className="h-4 w-4 mr-1" />
+                  <div className="flex gap-2 pt-3 border-t border-white/[0.08]">
+                    <Button size="sm" variant="outline" onClick={() => openEditDialog(group)} className="flex-1 bg-[#0B1124] border-white/15 text-[#F8FAFC] hover:bg-white/10">
+                      <Pencil className="h-3.5 w-3.5 mr-1" />
                       Edit
                     </Button>
-                    <Button size="sm" variant="outline" onClick={() => toggleActive(group)} className={group.is_active ? 'text-amber-600' : 'text-emerald-600'}>
+                    <Button size="sm" variant="outline" onClick={() => toggleActive(group)} className={`bg-[#0B1124] border-white/15 ${group.is_active ? 'text-amber-400 hover:bg-amber-500/10' : 'text-emerald-400 hover:bg-emerald-500/10'}`}>
                       {group.is_active ? <X className="h-4 w-4" /> : <Check className="h-4 w-4" />}
                     </Button>
-                    <Button size="sm" variant="outline" onClick={() => handleDelete(group)} className="text-red-600">
+                    <Button size="sm" variant="outline" onClick={() => handleDelete(group)} className="bg-[#0B1124] border-white/15 text-rose-400 hover:bg-rose-500/10">
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>

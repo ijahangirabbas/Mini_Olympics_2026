@@ -167,15 +167,33 @@ export async function PATCH(
       `;
     }
 
+    let emailSent = false;
+    let emailWarning: string | null = null;
     if ((status === 'paid' || status === 'rejected') && status !== currentReg.status) {
       try {
         if (status === 'paid') {
+          let gamesArr: string[] = [];
+          try {
+            gamesArr = Array.isArray(updated.selected_games)
+              ? updated.selected_games
+              : JSON.parse(String(updated.selected_games || '[]'));
+          } catch {
+            gamesArr = [];
+          }
+          const gamesListHtml =
+            gamesArr.length > 0
+              ? gamesArr.map((g) => `<li>${String(g)}</li>`).join('')
+              : '<li>Mini Olympics 2026 Event</li>';
+
           await sendPaymentReceivedEmail({
             to: updated.email,
             name: updated.name || 'Participant',
             regNum: updated.registration_number,
             slipId: updated.slip_id || '',
+            teamName: updated.team_name || updated.name || 'Individual',
+            gamesList: gamesListHtml,
           });
+          emailSent = true;
         } else {
           await sendPaymentNotReceivedEmail({
             to: updated.email,
@@ -184,9 +202,11 @@ export async function PATCH(
             slipId: updated.slip_id || '',
             paymentMethod: updated.payment_method === 'online' ? 'online' : 'cash',
           });
+          emailSent = true;
         }
       } catch (emailErr: any) {
-        console.error('Payment status email failed:', emailErr?.message || emailErr);
+        emailWarning = emailErr?.message || 'Email delivery failed';
+        console.error('Payment status email failed:', emailWarning);
       }
     }
 
@@ -201,7 +221,7 @@ export async function PATCH(
       ip: getClientIp(request),
     });
 
-    return NextResponse.json({ success: true, data: updated });
+    return NextResponse.json({ success: true, data: updated, emailSent, emailWarning });
   } catch (error: any) {
     console.error('Update registration error:', error);
     return NextResponse.json(

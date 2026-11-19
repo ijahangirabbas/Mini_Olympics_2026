@@ -438,20 +438,13 @@ function RegisterForm() {
     return { dataUrl, sizeKB: Math.max(1, Math.round(bestBlob.size / 1024)) };
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const processScreenshotFile = async (file: File) => {
     setScreenshotError('');
     setScreenshotInfo('');
 
-    if (!file) {
-      setFormData((prev) => ({ ...prev, screenshotUrl: '' }));
-      return;
-    }
-
     if (!file.type.startsWith('image/')) {
-      e.target.value = '';
       setFormData((prev) => ({ ...prev, screenshotUrl: '' }));
-      setScreenshotError('Please select a valid image file (PNG, JPG, or WebP).');
+      setScreenshotError('Please select or paste a valid image (PNG, JPG, or WebP).');
       return;
     }
 
@@ -464,11 +457,36 @@ function RegisterForm() {
       }));
       setScreenshotInfo(`Compressed to ${sizeKB} KB`);
     } catch (err: any) {
-      e.target.value = '';
       setFormData((prev) => ({ ...prev, screenshotUrl: '' }));
       setScreenshotError(err?.message || 'Failed to process screenshot image.');
     } finally {
       setCompressingScreenshot(false);
+    }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) {
+      setScreenshotError('');
+      setScreenshotInfo('');
+      setFormData((prev) => ({ ...prev, screenshotUrl: '' }));
+      return;
+    }
+    await processScreenshotFile(file);
+  };
+
+  const handleScreenshotPaste = async (e: React.ClipboardEvent<HTMLDivElement>) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.startsWith('image/')) {
+        const file = items[i].getAsFile();
+        if (file) {
+          e.preventDefault();
+          await processScreenshotFile(file);
+          return;
+        }
+      }
     }
   };
 
@@ -1168,9 +1186,13 @@ function RegisterForm() {
                         />
                       </div>
 
-                      <div>
+                      <div
+                        onPaste={handleScreenshotPaste}
+                        tabIndex={0}
+                        className="p-3.5 rounded-xl bg-[#0B1124] border border-dashed border-white/[0.18] focus:border-[#12E2C4] outline-none transition-colors"
+                      >
                         <Label htmlFor="proof" className="text-xs font-mono text-[#94A3B8] uppercase">
-                          Upload Payment Proof Screenshot *
+                          Upload or Paste (Ctrl+V) Payment Proof Screenshot *
                         </Label>
                         <Input
                           id="proof"
@@ -1178,8 +1200,11 @@ function RegisterForm() {
                           accept="image/*"
                           disabled={compressingScreenshot}
                           onChange={handleFileUpload}
-                          className="mt-1 bg-[#0B1124] border-white/[0.1] text-xs text-[#F8FAFC] rounded-xl file:bg-[#182244] file:text-white file:border-0 file:rounded-lg file:mr-3"
+                          className="mt-1.5 bg-[#131B38] border-white/[0.1] text-xs text-[#F8FAFC] rounded-xl file:bg-[#182244] file:text-white file:border-0 file:rounded-lg file:mr-3"
                         />
+                        <p className="text-[11px] font-mono text-[#94A3B8]/80 mt-1.5">
+                          Tip: Click this box and press <strong>Ctrl+V</strong> to paste a screenshot directly, or choose an image file.
+                        </p>
                         {compressingScreenshot && (
                           <p className="text-xs text-[#94A3B8] font-mono mt-1.5">
                             Optimizing screenshot for upload...
@@ -1192,10 +1217,17 @@ function RegisterForm() {
                           </p>
                         )}
                         {formData.screenshotUrl && !compressingScreenshot && (
-                          <p className="text-xs text-[#12E2C4] font-mono mt-1.5 flex items-center gap-1">
-                            <Check className="w-3.5 h-3.5" />
-                            Receipt proof attached successfully{screenshotInfo ? ` (${screenshotInfo})` : ''}.
-                          </p>
+                          <div className="mt-2.5 space-y-2">
+                            <p className="text-xs text-[#12E2C4] font-mono flex items-center gap-1">
+                              <Check className="w-3.5 h-3.5" />
+                              Receipt proof attached successfully{screenshotInfo ? ` (${screenshotInfo})` : ''}.
+                            </p>
+                            <img
+                              src={formData.screenshotUrl}
+                              alt="Payment proof preview"
+                              className="max-h-40 rounded-lg border border-white/15 object-contain bg-[#080D1C]"
+                            />
+                          </div>
                         )}
                       </div>
                     </div>
